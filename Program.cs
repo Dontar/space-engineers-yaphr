@@ -41,34 +41,32 @@ namespace IngameScript
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
             TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
-            TaskManager.AddTask(ControlCrane());
-            TaskManager.AddTask(PositionCrane("Park"));
-            TaskManager.AddTask(PositionCrane("Work"));
             TaskManager.AddTask(RenderToScreensTask(), 1.7f);
+            _ParkTask = TaskManager.AddTask(PositionCrane("Park"));
+            _WorkTask = TaskManager.AddTask(PositionCrane("Work"));
+            _ControlTask = TaskManager.AddTask(ControlCrane());
+            _ControlTask.IsPaused = true;
+            _ParkTask.IsPaused = true;
+            _WorkTask.IsPaused = true;
         }
 
-        private IEnumerable RenderToScreensTask()
-        {
-            while (true)
-            {
-                Screens.ForEach(s => menuSystem.Render(s));
-                yield return null;
-            }
-        }
-
-        private readonly CraneControlMenuManager menuSystem;
-        private string Mode = "off";
-        private string Profile = "default";
+        readonly CraneControlMenuManager menuSystem;
+        string Mode = "off";
+        string Profile = "default";
+        TaskManager.Task _ControlTask;
+        TaskManager.Task _ParkTask;
+        TaskManager.Task _WorkTask;
 
         public void Main(string argument, UpdateType updateSource)
         {
             try
             {
-                ProcessCommands(argument);
                 if (updateSource.HasFlag(UpdateType.Update10))
                 {
                     TaskManager.RunTasks(Runtime.TimeSinceLastRun);
                 }
+                else
+                    ProcessCommands(argument);
             }
             catch (Exception e)
             {
@@ -87,22 +85,18 @@ namespace IngameScript
         {
             while (true)
             {
-                if (Mode == "control")
+                var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
+                Sections.ForEach(info =>
                 {
-                    Sections.ForEach(info =>
-                    {
-                        if (info.blocks.Count == 0) return;
-                        var controllers = Memo.Of(() => Util.GetBlocks<IMyShipController>(b => b.CubeGrid == Me.CubeGrid && b.CanControlShip), "ControlCrane", 100);
-                        var direction = ReadControllerValue(controllers.FirstOrDefault(c => c.IsUnderControl), info.op);
-                        var block = info.blocks.First();
-                        var velocityState = Descriptor.Get(block);
-                        var targetVelocity = MathHelper.Clamp(info.desiredVelocity, -velocityState.Max, velocityState.Max);
-                        var error = targetVelocity * direction - velocityState.Current;
-                        var output = info.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, info.tune);
-                        info.blocks.ForEach(b => Descriptor.Set(b, (float)output));
-
-                    });
-                };
+                    if (info.blocks.Count == 0) return;
+                    var direction = ReadControllerValue(controller, info.op);
+                    var block = info.blocks.First();
+                    var velocityState = Descriptor.Get(block);
+                    var targetVelocity = MathHelper.Clamp(info.desiredVelocity, -velocityState.Max, velocityState.Max);
+                    var error = targetVelocity * direction - velocityState.Current;
+                    var output = info.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, info.tune);
+                    info.blocks.ForEach(b => Descriptor.Set(b, (float)output));
+                });
                 yield return null;
             }
         }
@@ -111,21 +105,18 @@ namespace IngameScript
         {
             while (true)
             {
-                if (Mode == optName.ToLower())
+                Sections.ForEach(info =>
                 {
-                    Sections.ForEach(info =>
-                    {
-                        if (!info.ini.ContainsKey(optName) || info.blocks.Count == 0) return;
-                        var value = info.ini[optName].Split('/');
-                        var desiredPos = value.Skip(4).Select(float.Parse).FirstOrDefault();
-                        var tune = value.Take(4).Select(double.Parse).ToArray();
-                        var block = info.blocks.First();
-                        var descriptor = Descriptor.Get(block);
-                        var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - descriptor.Position) : desiredPos - descriptor.Position;
-                        var output = info.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, tune);
-                        info.blocks.ForEach(b => Descriptor.Set(b, (float)output));
-                    });
-                }
+                    if (!info.ini.ContainsKey(optName) || info.blocks.Count == 0) return;
+                    var value = info.ini[optName].Split('/');
+                    var desiredPos = value.Skip(4).Select(float.Parse).FirstOrDefault();
+                    var tune = value.Take(4).Select(double.Parse).ToArray();
+                    var block = info.blocks.First();
+                    var descriptor = Descriptor.Get(block);
+                    var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - descriptor.Position) : desiredPos - descriptor.Position;
+                    var output = info.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, tune);
+                    info.blocks.ForEach(b => Descriptor.Set(b, (float)output));
+                });
                 yield return null;
             }
         }
@@ -141,6 +132,15 @@ namespace IngameScript
             });
             Me.CustomData = Config.ToString();
             yield return null;
+        }
+
+        private IEnumerable RenderToScreensTask()
+        {
+            while (true)
+            {
+                Screens.ForEach(s => menuSystem.Render(s));
+                yield return null;
+            }
         }
 
         float ReadControllerValue(IMyShipController controller, string name)
@@ -167,22 +167,14 @@ namespace IngameScript
 
         void ProcessCommands(string command)
         {
-            Action stop = () => Sections.ForEach(i =>
-            {
-                i.Reset();
-                i.blocks.ForEach(b => Descriptor.Set(b, 0f));
-            });
-
             if (command == null || command.Length == 0) return;
             switch (command.ToLower())
             {
                 case "toggle":
-                    stop();
                     Mode = Mode != "off" ? "off" : "control";
                     break;
                 case "toggle_park":
                 case "toggle_mode":
-                    stop();
                     Mode = Mode == "control" ? "park" : Mode == "park" ? "work" : "control";
                     break;
                 case "set_park":
@@ -191,7 +183,6 @@ namespace IngameScript
                     break;
                 case "park":
                 case "work":
-                    stop();
                     Mode = command.ToLower();
                     break;
                 default:
@@ -205,10 +196,14 @@ namespace IngameScript
                     }
                     if (menuSystem.ProcessMenuCommands(command))
                     {
+                        Mode = "off";
                         Screens.ForEach(s => menuSystem.Render(s));
                     }
                     break;
             }
+            _ControlTask.IsPaused = Mode != "control";
+            _ParkTask.IsPaused = Mode != "park";
+            _WorkTask.IsPaused = Mode != "work";
         }
 
         private void AddProfile(string v)
@@ -235,6 +230,8 @@ namespace IngameScript
             });
         }
 
+        List<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => b.CubeGrid == Me.CubeGrid && b.CanControlShip), "ControlCrane", 100);
+
         List<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
 
         List<PIDDescriptor> Sections => Memo.Of(() =>
@@ -254,7 +251,7 @@ namespace IngameScript
                     theIniKey => theIniKey,
                     (section, theIniKey) => new PIDDescriptor(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
                 .ToList();
-            }, "Sections", Memo.Refs(Config, Profile));
+            }, "Sections", Memo.Refs(Config, Profile, Mode));
         MyIni Config => Memo.Of(() =>
             {
                 var myIni = new MyIni();
