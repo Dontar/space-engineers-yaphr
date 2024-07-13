@@ -42,9 +42,9 @@ namespace IngameScript
             menuSystem = new CraneControlMenuManager(this);
             TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
             TaskManager.AddTask(RenderToScreensTask(), 1.7f);
+            _ControlTask = TaskManager.AddTask(ControlCrane());
             _ParkTask = TaskManager.AddTask(PositionCrane("Park"));
             _WorkTask = TaskManager.AddTask(PositionCrane("Work"));
-            _ControlTask = TaskManager.AddTask(ControlCrane());
             _ControlTask.IsPaused = true;
             _ParkTask.IsPaused = true;
             _WorkTask.IsPaused = true;
@@ -53,9 +53,9 @@ namespace IngameScript
         readonly CraneControlMenuManager menuSystem;
         string Mode = "off";
         string Profile = "default";
-        TaskManager.Task _ControlTask;
-        TaskManager.Task _ParkTask;
-        TaskManager.Task _WorkTask;
+        readonly TaskManager.Task _ControlTask;
+        readonly TaskManager.Task _ParkTask;
+        readonly TaskManager.Task _WorkTask;
 
         public void Main(string argument, UpdateType updateSource)
         {
@@ -167,6 +167,11 @@ namespace IngameScript
 
         void ProcessCommands(string command)
         {
+            Sections.ForEach(s =>
+            {
+                s.Reset();
+                s.blocks.ForEach(b => Descriptor.Set(b, 0f));
+            });
             if (command == null || command.Length == 0) return;
             switch (command.ToLower())
             {
@@ -196,7 +201,6 @@ namespace IngameScript
                     }
                     if (menuSystem.ProcessMenuCommands(command))
                     {
-                        Mode = "off";
                         Screens.ForEach(s => menuSystem.Render(s));
                     }
                     break;

@@ -26,9 +26,9 @@ namespace IngameScript
                         var allProfiles = sections.Select(s => s.Split('/')[0]).Distinct().ToArray();
                         program.Profile = allProfiles[(Array.IndexOf(allProfiles, program.Profile) + d + (d < 0 ? allProfiles.Length : 0)) % allProfiles.Length];
                     }},
-                    // new OptionItem { Label = "Mode", Value = (m, j) => program.Mode, Action = (m, j) => program.ProcessCommands("toggle_mode") },
-                    // new OptionItem { Label = "Park", Action = (menu, index) => program.ProcessCommands("park") },
-                    // new OptionItem { Label = "Work", Action = (menu, index) => program.ProcessCommands("work") },
+                    new OptionItem { Label = "Mode", Value = (m, j) => program.Mode, Action = (m, j) => program.ProcessCommands("toggle_mode") },
+                    new OptionItem { Label = "Park", Action = (menu, index) => program.ProcessCommands("park") },
+                    new OptionItem { Label = "Work", Action = (menu, index) => program.ProcessCommands("work") },
                     new OptionItem { Label = "Set Park position", Action = (menu, index) => program.ProcessCommands("set_park") },
                     new OptionItem { Label = "Set Work position", Action = (menu, index) => program.ProcessCommands("set_work") },
                 };
