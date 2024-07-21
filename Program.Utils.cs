@@ -335,7 +335,9 @@ namespace IngameScript
                 public void Render(IMyTextSurface screen)
                 {
                     screen.ContentType = ContentType.TEXT_AND_IMAGE;
-                    var size = screen.SurfaceSize / screen.MeasureStringInPixels(new StringBuilder("="), screen.Font, screen.FontSize);
+                    screen.Alignment = TextAlignment.LEFT;
+                    // var size = screen.SurfaceSize / screen.MeasureStringInPixels(new StringBuilder("="), screen.Font, screen.FontSize);
+                    var size = ScreenSize(screen, "=");
 
                     var output = new StringBuilder();
                     output.AppendLine(_title);
@@ -346,8 +348,8 @@ namespace IngameScript
 
                     for (int i = start; i < Math.Min(Count, start + pageSize); i++)
                     {
-                        var value = this[i].Value?.Invoke(this, i);
-                        output.AppendLine($"{(i == _activeOption ? "-" : "")}{(i == _selectedOption ? "> " : "  ")}{this[i].Label}{(value != null ? $": {value}" : "")}");
+                        var value = this[i].Value(this, i);
+                        output.AppendLine($"{(i == _activeOption ? "-" : "")}{(i == _selectedOption ? "> " : "  ")}{this[i].Label}{(!string.IsNullOrEmpty(value) ? $": {value}" : "")}");
                     }
 
                     var remainingLines = (int)(size.Y - output.ToString().Split('\n').Length);
@@ -355,10 +357,22 @@ namespace IngameScript
                     {
                         output.AppendLine();
                     }
-
-                    size = screen.SurfaceSize / screen.MeasureStringInPixels(new StringBuilder("-"), screen.Font, screen.FontSize);
+                    size = ScreenSize(screen, "-");
                     output.AppendLine(string.Join("", Enumerable.Repeat("-", (int)size.X)));
                     screen.WriteText(output.ToString());
+                }
+
+                Vector2 ScreenSize(IMyTextSurface screen, string Char)
+                {
+                    Vector2 refSize = screen.SurfaceSize;
+                    float height = screen.TextureSize.Y;
+                    float width = screen.TextureSize.X;
+                    refSize.Y *= 512 / height;
+                    refSize.X *= 512 / width;
+                    float noPaddingY = refSize.Y * (100 - screen.TextPadding * 2) / 100;
+                    float noPaddingX = refSize.X * (100 - screen.TextPadding * 2) / 100;
+                    Vector2 size = screen.MeasureStringInPixels(new StringBuilder(Char), screen.Font, screen.FontSize);
+                    return new Vector2(noPaddingX / size.X, noPaddingY / size.Y);
                 }
             }
 

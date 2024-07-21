@@ -40,7 +40,7 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
-            TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
+            _LogoTask = TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
             TaskManager.AddTask(RenderToScreensTask(), 1.7f);
             _ControlTask = TaskManager.AddTask(ControlCrane());
             _ParkTask = TaskManager.AddTask(PositionCrane("Park"));
@@ -51,8 +51,10 @@ namespace IngameScript
         }
 
         readonly CraneControlMenuManager menuSystem;
+
         string Mode = "off";
         string Profile = "default";
+        readonly TaskManager.Task _LogoTask;
         readonly TaskManager.Task _ControlTask;
         readonly TaskManager.Task _ParkTask;
         readonly TaskManager.Task _WorkTask;
@@ -138,7 +140,14 @@ namespace IngameScript
         {
             while (true)
             {
-                Screens.ForEach(s => menuSystem.Render(s));
+                Screens.ForEach(s =>
+                {
+                    if (s == Me.GetSurface(0))
+                    {
+                        _LogoTask.IsPaused = true;
+                    }
+                    menuSystem.Render(s);
+                });
                 yield return null;
             }
         }
