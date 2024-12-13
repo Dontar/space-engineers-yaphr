@@ -61,14 +61,18 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            ProcessCommands(argument);
+
+            if (!updateSource.HasFlag(UpdateType.Update10)) return;
+
+            if (Controllers.Count == 0) {
+                Log("No controller found.");
+                return;
+            }
+
             try
             {
-                if (updateSource.HasFlag(UpdateType.Update10))
-                {
-                    TaskManager.RunTasks(Runtime.TimeSinceLastRun);
-                }
-                else
-                    ProcessCommands(argument);
+                TaskManager.RunTasks(Runtime.TimeSinceLastRun);
             }
             catch (Exception e)
             {
@@ -85,19 +89,21 @@ namespace IngameScript
 
         IEnumerable ControlCrane()
         {
-            while (true)
+            var controllers = Controllers;
+            var sections = Sections;
+            while (controllers.Equals(Controllers) && sections.Equals(Sections))
             {
-                var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
-                Sections.ForEach(info =>
+                var controller = controllers.FirstOrDefault(c => c.IsUnderControl);
+                sections.ForEach(descriptor =>
                 {
-                    if (info.blocks.Count == 0) return;
-                    var direction = ReadControllerValue(controller, info.op);
-                    var block = info.blocks.First();
+                    if (descriptor.Blocks.Count == 0) return;
+                    var direction = ReadControllerValue(controller, descriptor.OP);
+                    var block = descriptor.Blocks.First();
                     var velocityState = Descriptor.Get(block);
-                    var targetVelocity = MathHelper.Clamp(info.desiredVelocity, -velocityState.Max, velocityState.Max);
+                    var targetVelocity = MathHelper.Clamp(descriptor.DesiredVelocity, -velocityState.Max, velocityState.Max);
                     var error = targetVelocity * direction - velocityState.Current;
-                    var output = info.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, info.tune);
-                    info.blocks.ForEach(b => Descriptor.Set(b, (float)output));
+                    var output = descriptor.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, descriptor.PIDTune);
+                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)output));
                 });
                 yield return null;
             }
@@ -105,19 +111,20 @@ namespace IngameScript
 
         IEnumerable PositionCrane(string optName)
         {
-            while (true)
+            var sections = Sections;
+            while (sections.Equals(Sections))
             {
-                Sections.ForEach(info =>
+                sections.ForEach(descriptor =>
                 {
-                    if (!info.ini.ContainsKey(optName) || info.blocks.Count == 0) return;
-                    var value = info.ini[optName].Split('/');
+                    if (!descriptor.INI.ContainsKey(optName) || descriptor.Blocks.Count == 0) return;
+                    var value = descriptor.INI[optName].Split('/');
                     var desiredPos = value.Skip(4).Select(float.Parse).FirstOrDefault();
                     var tune = value.Take(4).Select(double.Parse).ToArray();
-                    var block = info.blocks.First();
-                    var descriptor = Descriptor.Get(block);
-                    var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - descriptor.Position) : desiredPos - descriptor.Position;
-                    var output = info.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, tune);
-                    info.blocks.ForEach(b => Descriptor.Set(b, (float)output));
+                    var block = descriptor.Blocks.First();
+                    var positionState = Descriptor.Get(block);
+                    var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - positionState.Position) : desiredPos - positionState.Position;
+                    var output = descriptor.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, tune);
+                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)output));
                 });
                 yield return null;
             }
@@ -127,10 +134,10 @@ namespace IngameScript
         {
             Sections.ForEach(info =>
             {
-                if (info.blocks.Count == 0) return;
+                if (info.Blocks.Count == 0) return;
                 var ini = Config;
-                var descriptor = Descriptor.Get(info.blocks.First());
-                ini.Set($"{Profile}/{info.section}", optName, $"15/{info.tune[1]}/{info.tune[2]}/{info.tune[3]}/{descriptor.Position}");
+                var descriptor = Descriptor.Get(info.Blocks.First());
+                ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{descriptor.Position}");
             });
             Me.CustomData = Config.ToString();
             yield return null;
@@ -179,7 +186,7 @@ namespace IngameScript
             Sections.ForEach(s =>
             {
                 s.Reset();
-                s.blocks.ForEach(b => Descriptor.Set(b, 0f));
+                s.Blocks.ForEach(b => Descriptor.Set(b, 0f));
             });
             if (command == null || command.Length == 0) return;
             switch (command.ToLower())
