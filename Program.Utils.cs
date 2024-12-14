@@ -182,12 +182,22 @@ namespace IngameScript
 
             public static bool IsNotIgnored(IMyTerminalBlock block, string ignoreTag = "{Ignore}")
             {
-                return !block.CustomName.Contains(ignoreTag);
+                return !(block.CustomName.Contains(ignoreTag) || block.CustomData.Contains(ignoreTag));
             }
 
             public static bool IsTagged(IMyTerminalBlock block, string tag = "{DDAS}")
             {
-                return block.CustomName.Contains(tag);
+                return block.CustomName.Contains(tag) || block.CustomData.Contains(tag);
+            }
+
+            public static bool IsBetween(double value, double min, double max)
+            {
+                return value >= min && value <= max;
+            }
+
+            public static bool HasScreens(IMyTerminalBlock block)
+            {
+                return block is IMyTextSurfaceProvider && (block as IMyTextSurfaceProvider).SurfaceCount > 0;
             }
 
             public static void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, IMyGyro gyro, MatrixD worldMatrix)
@@ -348,8 +358,8 @@ namespace IngameScript
 
                     for (int i = start; i < Math.Min(Count, start + pageSize); i++)
                     {
-                        var value = this[i].Value(this, i);
-                        output.AppendLine($"{(i == _activeOption ? "-" : "")}{(i == _selectedOption ? "> " : "  ")}{this[i].Label}{(!string.IsNullOrEmpty(value) ? $": {value}" : "")}");
+                        var value = this[i].Value?.Invoke(this, i);
+                        output.AppendLine($"{(i == _activeOption ? "-" : "")}{(i == _selectedOption ? "> " : "  ")}{this[i].Label}{(value != null ? $": {value}" : "")}");
                     }
 
                     var remainingLines = (int)(size.Y - output.ToString().Split('\n').Length);
