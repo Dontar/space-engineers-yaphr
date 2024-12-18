@@ -27,6 +27,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+        #region mdk preserve
         const string RotationIndicatorY = "Yaw";
         const string RotationIndicatorX = "Pitch";
         const string RollIndicator = "Roll";
@@ -34,6 +35,7 @@ namespace IngameScript
         const string MoveIndicatorY = "Up/Down";
         const string MoveIndicatorZ = "Forward/Backward";
         const string screenTag = "[CC]";
+        #endregion
 
         public Program()
         {
@@ -89,11 +91,10 @@ namespace IngameScript
 
         IEnumerable ControlCrane()
         {
-            var controllers = Controllers;
             var sections = Sections;
-            while (controllers.Equals(Controllers) && sections.Equals(Sections))
+            while (sections.Equals(Sections))
             {
-                var controller = controllers.FirstOrDefault(c => c.IsUnderControl);
+                var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
                 sections.ForEach(descriptor =>
                 {
                     if (descriptor.Blocks.Count == 0) return;
@@ -183,12 +184,12 @@ namespace IngameScript
 
         void ProcessCommands(string command)
         {
+            if (command == null || command.Length == 0) return;
             Sections.ForEach(s =>
             {
                 s.Reset();
                 s.Blocks.ForEach(b => Descriptor.Set(b, 0f));
             });
-            if (command == null || command.Length == 0) return;
             switch (command.ToLower())
             {
                 case "toggle":
@@ -271,7 +272,7 @@ namespace IngameScript
                     theIniKey => theIniKey,
                     (section, theIniKey) => new PIDDescriptor(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
                 .ToList();
-            }, "Sections", Memo.Refs(Config, Profile, Mode));
+            }, "Sections", Memo.Refs(Config, Profile));
         MyIni Config => Memo.Of(() =>
             {
                 var myIni = new MyIni();
