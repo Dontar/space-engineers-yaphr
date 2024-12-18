@@ -193,7 +193,7 @@ namespace IngameScript
             switch (command.ToLower())
             {
                 case "toggle":
-                    Mode = Mode != "off" ? "off" : "control";
+                    Mode = Mode != "control" ? "control" : "off";
                     break;
                 case "toggle_park":
                 case "toggle_mode":
