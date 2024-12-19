@@ -52,7 +52,7 @@ namespace IngameScript
                         .ForEach(s =>
                         {
                             var section = s.Label.Substring(4);
-                            InputNames.ToList().ForEach(i => myIni.Set(section, i, "0"));
+                            InputNames.ToList().ForEach(i => myIni.Set($"{program.Profile}/{section}", i, "0"));
                             myIni.Set($"{program.Profile}/{section}", "Tuning", "0/15/0/2");
                         });
                     program.Me.CustomData = myIni.ToString();
