@@ -67,7 +67,8 @@ namespace IngameScript
 
             if (!updateSource.HasFlag(UpdateType.Update10)) return;
 
-            if (Controllers.Count == 0) {
+            if (Controllers.Count() == 0)
+            {
                 Log("No controller found.");
                 return;
             }
@@ -148,14 +149,14 @@ namespace IngameScript
         {
             while (true)
             {
-                Screens.ForEach(s =>
+                foreach (var s in Screens)
                 {
                     if (s == Me.GetSurface(0))
                     {
                         _LogoTask.IsPaused = true;
                     }
                     menuSystem.Render(s);
-                });
+                }
                 yield return null;
             }
         }
@@ -218,7 +219,7 @@ namespace IngameScript
                     }
                     if (menuSystem.ProcessMenuCommands(command))
                     {
-                        Screens.ForEach(s => menuSystem.Render(s));
+                        foreach (var s in Screens) menuSystem.Render(s);
                     }
                     break;
             }
@@ -251,9 +252,9 @@ namespace IngameScript
             });
         }
 
-        List<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => b.CubeGrid == Me.CubeGrid && b.CanControlShip), "ControlCrane", 100);
+        IEnumerable<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => b.CubeGrid == Me.CubeGrid && b.CanControlShip), "ControlCrane", 100);
 
-        List<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
+        IEnumerable<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
 
         List<PIDDescriptor> Sections => Memo.Of(() =>
             {
