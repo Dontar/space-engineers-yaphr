@@ -105,7 +105,7 @@ namespace IngameScript
                     var targetVelocity = MathHelper.Clamp(descriptor.DesiredVelocity, -velocityState.Max, velocityState.Max);
                     var error = targetVelocity * direction - velocityState.Current;
                     var output = descriptor.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, descriptor.PIDTune);
-                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)output));
+                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)Math.Round(output, 3)));
                 });
                 yield return null;
             }
@@ -126,7 +126,7 @@ namespace IngameScript
                     var positionState = Descriptor.Get(block);
                     var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - positionState.Position) : desiredPos - positionState.Position;
                     var output = descriptor.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, tune);
-                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)output));
+                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)Math.Round(output, 3)));
                 });
                 yield return null;
             }
