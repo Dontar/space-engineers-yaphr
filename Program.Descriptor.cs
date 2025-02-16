@@ -4,7 +4,7 @@ namespace IngameScript
 {
     partial class Program
     {
-        class Descriptor
+        struct Descriptor
         {
             public float Max;
             public float Current;

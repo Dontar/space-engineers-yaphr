@@ -43,10 +43,11 @@ namespace IngameScript
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
             _LogoTask = TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
-            TaskManager.AddTask(RenderToScreensTask(), 1.7f);
+            TaskManager.AddTask(RenderMenu(), 1.7f);
             _ControlTask = TaskManager.AddTask(ControlCrane());
             _ParkTask = TaskManager.AddTask(PositionCrane("Park"));
             _WorkTask = TaskManager.AddTask(PositionCrane("Work"));
+            TaskManager.AddTask(Util.StatusMonitor(this));
             _ControlTask.IsPaused = true;
             _ParkTask.IsPaused = true;
             _WorkTask.IsPaused = true;
@@ -56,105 +57,78 @@ namespace IngameScript
 
         string Mode = "off";
         string Profile = "default";
-        readonly TaskManager.Task _LogoTask;
-        readonly TaskManager.Task _ControlTask;
-        readonly TaskManager.Task _ParkTask;
-        readonly TaskManager.Task _WorkTask;
+        TaskManager.Task _LogoTask;
+        TaskManager.Task _ControlTask;
+        TaskManager.Task _ParkTask;
+        TaskManager.Task _WorkTask;
 
         public void Main(string argument, UpdateType updateSource)
         {
-            ProcessCommands(argument);
+            if (!string.IsNullOrEmpty(argument))
+                ProcessCommands(argument);
 
             if (!updateSource.HasFlag(UpdateType.Update10)) return;
 
             if (Controllers.Count() == 0)
             {
-                Log("No controller found.");
+                Util.Echo("No controller found.");
                 return;
             }
 
-            try
-            {
-                TaskManager.RunTasks(Runtime.TimeSinceLastRun);
-            }
-            catch (Exception e)
-            {
-                Log(e.ToString());
-            }
-        }
+            _ControlTask.IsPaused = Mode != "control";
+            _ParkTask.IsPaused = Mode != "park";
+            _WorkTask.IsPaused = Mode != "work";
 
-        void Log(string msg)
-        {
-            Echo(msg);
+            TaskManager.RunTasks(Runtime.TimeSinceLastRun);
         }
-
-        public static readonly string[] InputNames = new string[] { RotationIndicatorX, RotationIndicatorY, RollIndicator, MoveIndicatorX, MoveIndicatorY, MoveIndicatorZ };
 
         IEnumerable ControlCrane()
         {
-            var sections = Sections;
-            while (sections.Equals(Sections))
+            while (true)
             {
                 var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
-                sections.ForEach(descriptor =>
+                foreach (var descriptor in Sections)
                 {
-                    if (descriptor.Blocks.Count == 0) return;
                     var direction = ReadControllerValue(controller, descriptor.OP);
-                    var block = descriptor.Blocks.First();
-                    var velocityState = Descriptor.Get(block);
-                    var targetVelocity = MathHelper.Clamp(descriptor.DesiredVelocity, -velocityState.Max, velocityState.Max);
-                    var error = targetVelocity * direction - velocityState.Current;
-                    var output = descriptor.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, descriptor.PIDTune);
-                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)Math.Round(output, 3)));
-                });
+                    descriptor.Control(direction);
+                }
                 yield return null;
             }
         }
 
-        IEnumerable PositionCrane(string optName)
+        IEnumerable PositionCrane(string position)
         {
-            var sections = Sections;
-            while (sections.Equals(Sections))
+            while (true)
             {
-                sections.ForEach(descriptor =>
+                if (Sections.Select(d => d.Position(position)).All(d => d))
                 {
-                    if (!descriptor.INI.ContainsKey(optName) || descriptor.Blocks.Count == 0) return;
-                    var value = descriptor.INI[optName].Split('/');
-                    var desiredPos = value.Skip(4).Select(float.Parse).FirstOrDefault();
-                    var tune = value.Take(4).Select(double.Parse).ToArray();
-                    var block = descriptor.Blocks.First();
-                    var positionState = Descriptor.Get(block);
-                    var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - positionState.Position) : desiredPos - positionState.Position;
-                    var output = descriptor.Signal(error, TaskManager.CurrentTaskLastRun.TotalSeconds, tune);
-                    descriptor.Blocks.ForEach(b => Descriptor.Set(b, (float)Math.Round(output, 3)));
-                });
+                    Mode = "off";
+                    Stop();
+                }
                 yield return null;
             }
         }
 
         IEnumerable SavePositions(string optName)
         {
-            Sections.ForEach(info =>
+            foreach (var info in Sections)
             {
-                if (info.Blocks.Count == 0) return;
+                if (info.Blocks.Length == 0) continue;
                 var ini = Config;
                 var descriptor = Descriptor.Get(info.Blocks.First());
                 ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{descriptor.Position}");
-            });
+            }
             Me.CustomData = Config.ToString();
             yield return null;
         }
 
-        private IEnumerable RenderToScreensTask()
+        private IEnumerable RenderMenu()
         {
             while (true)
             {
                 foreach (var s in Screens)
                 {
-                    if (s == Me.GetSurface(0))
-                    {
-                        _LogoTask.IsPaused = true;
-                    }
+                    if (s == Me.GetSurface(0)) _LogoTask.IsPaused = true;
                     menuSystem.Render(s);
                 }
                 yield return null;
@@ -185,47 +159,37 @@ namespace IngameScript
 
         void ProcessCommands(string command)
         {
-            if (command == null || command.Length == 0) return;
-            Sections.ForEach(s =>
-            {
-                s.Reset();
-                s.Blocks.ForEach(b => Descriptor.Set(b, 0f));
-            });
-            switch (command.ToLower())
+            var cmd = command.ToLower().Trim();
+            Stop();
+            switch (cmd)
             {
                 case "toggle":
                     Mode = Mode != "control" ? "control" : "off";
                     break;
-                case "toggle_park":
-                case "toggle_mode":
-                    Mode = Mode == "control" ? "park" : Mode == "park" ? "work" : "control";
-                    break;
                 case "set_park":
                 case "set_work":
-                    TaskManager.AddTaskOnce(SavePositions(char.ToUpper(command[4]) + command.Substring(5).ToLower()));
+                    TaskManager.AddTaskOnce(SavePositions(char.ToUpper(cmd[4]) + cmd.Substring(5)));
                     break;
                 case "park":
                 case "work":
-                    Mode = command.ToLower();
+                    Mode = cmd;
                     break;
                 default:
-                    if (command.ToLower().StartsWith("add"))
+                    var match = cmd.Substring(0, 3);
+                    switch (match)
                     {
-                        AddProfile(command.Substring(4));
-                    }
-                    if (command.ToLower().StartsWith("set"))
-                    {
-                        Profile = command.Substring(4);
-                    }
-                    if (menuSystem.ProcessMenuCommands(command))
-                    {
-                        foreach (var s in Screens) menuSystem.Render(s);
+                        case "add":
+                            AddProfile(command.Substring(4).Trim());
+                            break;
+                        case "set":
+                            Profile = command.Substring(4).Trim();
+                            break;
+                        default:
+                            if (menuSystem.ProcessMenuCommands(command)) foreach (var s in Screens) menuSystem.Render(s);
+                            break;
                     }
                     break;
             }
-            _ControlTask.IsPaused = Mode != "control";
-            _ParkTask.IsPaused = Mode != "park";
-            _WorkTask.IsPaused = Mode != "work";
         }
 
         private void AddProfile(string v)
@@ -243,9 +207,7 @@ namespace IngameScript
 
             if (p.Where(k => k.Profile == v).Any()) return;
 
-            p.Where(k => k.Profile == "default")
-            .ToList()
-            .ForEach(i =>
+            p.Where(k => k.Profile == "default").ToList().ForEach(i =>
             {
                 Config.Set($"{v}/{i.Section}", i.Name, i.Value);
                 Me.CustomData = Config.ToString();
@@ -256,7 +218,7 @@ namespace IngameScript
 
         IEnumerable<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
 
-        List<PIDDescriptor> Sections => Memo.Of(() =>
+        IEnumerable<PIDDescriptor> Sections => Memo.Of(() =>
             {
                 var opts = new List<MyIniKey>();
                 Config.GetKeys(opts);
@@ -272,7 +234,7 @@ namespace IngameScript
                     iniKey => iniKey.Section,
                     theIniKey => theIniKey,
                     (section, theIniKey) => new PIDDescriptor(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
-                .ToList();
+                .ToArray();
             }, "Sections", Memo.Refs(Config, Profile));
         MyIni Config => Memo.Of(() =>
             {
@@ -280,5 +242,14 @@ namespace IngameScript
                 myIni.TryParse(Me.CustomData);
                 return myIni;
             }, "GetConfig", Memo.Refs(Me.CustomData));
+
+        void Stop()
+        {
+            foreach (var s in Sections)
+            {
+                s.Reset();
+                Array.ForEach(s.Blocks, b => Descriptor.Set(b, 0f));
+            }
+        }
     }
 }

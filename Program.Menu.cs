@@ -44,20 +44,24 @@ namespace IngameScript
                     m[1].Label = ".Save";
                 };
 
-                configMenu.Add(new OptionItem { Label = "Save", Action = (m, j) =>
+                configMenu.Add(new OptionItem
                 {
-                    var myIni = program.Config;
-                    m.Where(s => s.Label.StartsWith("[x]"))
-                        .ToList()
-                        .ForEach(s =>
-                        {
-                            var section = s.Label.Substring(4);
-                            InputNames.ToList().ForEach(i => myIni.Set($"{program.Profile}/{section}", i, "0"));
-                            myIni.Set($"{program.Profile}/{section}", "Tuning", "0/15/0/2");
-                        });
-                    program.Me.CustomData = myIni.ToString();
-                    m[1].Label = "Save";
-                } });
+                    Label = "Save",
+                    Action = (m, j) =>
+                    {
+                        var myIni = program.Config;
+                        m.Where(s => s.Label.StartsWith("[x]"))
+                            .ToList()
+                            .ForEach(s =>
+                            {
+                                var section = s.Label.Substring(4);
+                                Array.ForEach(InputNames, i => myIni.Set($"{program.Profile}/{section}", i, "0"));
+                                myIni.Set($"{program.Profile}/{section}", "Tuning", "0/15/0/2");
+                            });
+                        program.Me.CustomData = myIni.ToString();
+                        m[1].Label = "Save";
+                    }
+                });
 
                 var groups = new List<IMyBlockGroup>();
                 program.GridTerminalSystem.GetBlockGroups(groups);
