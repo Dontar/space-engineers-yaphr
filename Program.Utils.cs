@@ -263,7 +263,7 @@ namespace IngameScript
             {
                 v.Y = 0;
                 v.Normalize();
-                return v.X <= 0.0 ? 0.0 - Math.Acos(v.Dot(Vector3D.Forward)) : Math.Acos(v.Dot(Vector3D.Forward));
+                return v.X >= 0.0 ? 0.0 - Math.Acos(v.Dot(Vector3D.Forward)) : Math.Acos(v.Dot(Vector3D.Forward));
             }
 
             public static IEnumerable DisplayLogo(string logo, IMyTextSurface screen)
@@ -279,10 +279,10 @@ namespace IngameScript
                         progress.MoveNext();
                     }
                     ;
-                    var size = screen.MeasureStringInPixels(new StringBuilder(pbLabel), screen.Font, screen.FontSize);
+                    var screenLines = ScreenLines(screen);
                     screen.Alignment = TextAlignment.CENTER;
                     screen.ContentType = ContentType.TEXT_AND_IMAGE;
-                    screen.WriteText(string.Join("", Enumerable.Repeat("\n", (int)(screen.SurfaceSize.Y / size.Y) / 2)) + pbLabel + progress.Current);
+                    screen.WriteText(string.Join("", Enumerable.Repeat("\n", screenLines / 2) + pbLabel + progress.Current));
                     yield return null;
                 }
             }
