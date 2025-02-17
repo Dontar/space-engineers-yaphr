@@ -21,7 +21,6 @@ using VRage.Game.Components;
 using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Game.Models;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRage.Library;
 using VRageMath;
