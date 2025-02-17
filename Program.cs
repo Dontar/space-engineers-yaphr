@@ -157,41 +157,41 @@ namespace IngameScript
 
         void ProcessCommands(string command)
         {
-            try
+            var cmd = command.ToLower().Trim();
+            Stop();
+            switch (cmd)
             {
-                var cmd = command.ToLower().Trim();
-                Stop();
-                switch (cmd)
-                {
-                    case "toggle":
-                        Mode = Mode != "control" ? "control" : "off";
-                        break;
-                    case "set_park":
-                    case "set_work":
-                        TaskManager.AddTaskOnce(SavePositions(char.ToUpper(cmd[4]) + cmd.Substring(5)));
-                        break;
-                    case "park":
-                    case "work":
-                        Mode = cmd;
-                        break;
-                    default:
-                        var match = System.Text.RegularExpressions.Regex.Match(cmd, @"^(add|set)").Groups[1].Value;
-                        switch (match)
+                case "toggle":
+                    Mode = Mode != "control" ? "control" : "off";
+                    break;
+                case "set_park":
+                case "set_work":
+                    TaskManager.AddTaskOnce(SavePositions(char.ToUpper(cmd[4]) + cmd.Substring(5)));
+                    break;
+                case "park":
+                case "work":
+                    Mode = cmd;
+                    break;
+                default:
+                    if (cmd.StartsWith("add"))
+                    {
+                        AddProfile(command.Substring(4).Trim());
+                    }
+                    else
+                    if (cmd.StartsWith("set"))
+                    {
+                        Profile = command.Substring(4).Trim();
+                    }
+                    else
+                    if (menuSystem.ProcessMenuCommands(cmd))
+                    {
+                        foreach (var s in Screens)
                         {
-                            case "add":
-                                AddProfile(command.Substring(4).Trim());
-                                break;
-                            case "set":
-                                Profile = command.Substring(4).Trim();
-                                break;
-                            default:
-                                if (menuSystem.ProcessMenuCommands(cmd)) foreach (var s in Screens) menuSystem.Render(s);
-                                break;
+                            menuSystem.Render(s);
                         }
-                        break;
-                }
+                    }
+                    break;
             }
-            catch (Exception e) { Util.Echo(e.Message + "\n" + e.StackTrace); }
         }
 
         private void AddProfile(string v)
