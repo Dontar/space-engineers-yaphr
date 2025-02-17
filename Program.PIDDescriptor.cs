@@ -98,7 +98,7 @@ namespace IngameScript
 
                 var output = (float)Math.Round(Signal(error, time, tune), 3);
                 Array.ForEach(Blocks, b => Descriptor.Set(b, output));
-                return Math.Abs(error) < 0.001;
+                return Math.Abs(error) < 0.01;
             }
         }
     }

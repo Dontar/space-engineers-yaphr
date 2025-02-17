@@ -10,7 +10,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Resources;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using VRage;
 using VRage.Collections;
@@ -42,25 +41,25 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
-            _LogoTask = TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
+            TaskManager.AddTask(Util.StatusMonitor(this));
             TaskManager.AddTask(RenderMenu(), 1.7f);
             _ControlTask = TaskManager.AddTask(ControlCrane());
             _ParkTask = TaskManager.AddTask(PositionCrane("Park"));
             _WorkTask = TaskManager.AddTask(PositionCrane("Work"));
-            TaskManager.AddTask(Util.StatusMonitor(this));
-            _ControlTask.IsPaused = true;
-            _ParkTask.IsPaused = true;
-            _WorkTask.IsPaused = true;
+            _LogoTask = TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
+            TaskManager.PauseTask(_ControlTask, true);
+            TaskManager.PauseTask(_ParkTask, true);
+            TaskManager.PauseTask(_WorkTask, true);
         }
 
         readonly CraneControlMenuManager menuSystem;
 
         string Mode = "off";
         string Profile = "default";
-        TaskManager.Task _LogoTask;
-        TaskManager.Task _ControlTask;
-        TaskManager.Task _ParkTask;
-        TaskManager.Task _WorkTask;
+        int _LogoTask;
+        int _ControlTask;
+        int _ParkTask;
+        int _WorkTask;
 
         public void Main(string argument, UpdateType updateSource)
         {
@@ -75,10 +74,9 @@ namespace IngameScript
                 return;
             }
 
-            _ControlTask.IsPaused = Mode != "control";
-            _ParkTask.IsPaused = Mode != "park";
-            _WorkTask.IsPaused = Mode != "work";
-
+            TaskManager.PauseTask(_ControlTask, Mode != "control");
+            TaskManager.PauseTask(_ParkTask, Mode != "park");
+            TaskManager.PauseTask(_WorkTask, Mode != "work");
             TaskManager.RunTasks(Runtime.TimeSinceLastRun);
         }
 
@@ -100,7 +98,7 @@ namespace IngameScript
         {
             while (true)
             {
-                if (Sections.Select(d => d.Position(position)).All(d => d))
+                if (Sections.Select(d => d.Position(position)).ToArray().All(d => d))
                 {
                     Mode = "off";
                     Stop();
@@ -128,7 +126,7 @@ namespace IngameScript
             {
                 foreach (var s in Screens)
                 {
-                    if (s == Me.GetSurface(0)) _LogoTask.IsPaused = true;
+                    if (s == Me.GetSurface(0)) TaskManager.PauseTask(_LogoTask, true);
                     menuSystem.Render(s);
                 }
                 yield return null;
@@ -159,37 +157,41 @@ namespace IngameScript
 
         void ProcessCommands(string command)
         {
-            var cmd = command.ToLower().Trim();
-            Stop();
-            switch (cmd)
+            try
             {
-                case "toggle":
-                    Mode = Mode != "control" ? "control" : "off";
-                    break;
-                case "set_park":
-                case "set_work":
-                    TaskManager.AddTaskOnce(SavePositions(char.ToUpper(cmd[4]) + cmd.Substring(5)));
-                    break;
-                case "park":
-                case "work":
-                    Mode = cmd;
-                    break;
-                default:
-                    var match = cmd.Substring(0, 3);
-                    switch (match)
-                    {
-                        case "add":
-                            AddProfile(command.Substring(4).Trim());
-                            break;
-                        case "set":
-                            Profile = command.Substring(4).Trim();
-                            break;
-                        default:
-                            if (menuSystem.ProcessMenuCommands(command)) foreach (var s in Screens) menuSystem.Render(s);
-                            break;
-                    }
-                    break;
+                var cmd = command.ToLower().Trim();
+                Stop();
+                switch (cmd)
+                {
+                    case "toggle":
+                        Mode = Mode != "control" ? "control" : "off";
+                        break;
+                    case "set_park":
+                    case "set_work":
+                        TaskManager.AddTaskOnce(SavePositions(char.ToUpper(cmd[4]) + cmd.Substring(5)));
+                        break;
+                    case "park":
+                    case "work":
+                        Mode = cmd;
+                        break;
+                    default:
+                        var match = System.Text.RegularExpressions.Regex.Match(cmd, @"^(add|set)").Groups[1].Value;
+                        switch (match)
+                        {
+                            case "add":
+                                AddProfile(command.Substring(4).Trim());
+                                break;
+                            case "set":
+                                Profile = command.Substring(4).Trim();
+                                break;
+                            default:
+                                if (menuSystem.ProcessMenuCommands(cmd)) foreach (var s in Screens) menuSystem.Render(s);
+                                break;
+                        }
+                        break;
+                }
             }
+            catch (Exception e) { Util.Echo(e.Message + "\n" + e.StackTrace); }
         }
 
         private void AddProfile(string v)
@@ -219,29 +221,30 @@ namespace IngameScript
         IEnumerable<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
 
         IEnumerable<PIDDescriptor> Sections => Memo.Of(() =>
+        {
+            var opts = new List<MyIniKey>();
+            Config.GetKeys(opts);
+            return opts.Select(k =>
             {
-                var opts = new List<MyIniKey>();
-                Config.GetKeys(opts);
-                return opts.Select(k =>
-                {
-                    var p = k.Section.Split('/');
-                    var profile = p.Length < 2 ? "default" : p.First();
-                    var section = p.Last();
-                    return new { k.Name, Section = section, Profile = profile, Value = Config.Get(k).ToString() };
-                })
-                .Where(i => i.Profile == Profile)
-                .GroupBy(
-                    iniKey => iniKey.Section,
-                    theIniKey => theIniKey,
-                    (section, theIniKey) => new PIDDescriptor(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
-                .ToArray();
-            }, "Sections", Memo.Refs(Config, Profile));
+                var p = k.Section.Split('/');
+                var profile = p.Length < 2 ? "default" : p.First();
+                var section = p.Last();
+                return new { k.Name, Section = section, Profile = profile, Value = Config.Get(k).ToString() };
+            })
+            .Where(i => i.Profile == Profile)
+            .GroupBy(
+                iniKey => iniKey.Section,
+                theIniKey => theIniKey,
+                (section, theIniKey) => new PIDDescriptor(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
+            .ToArray();
+        }, "Sections", Memo.Refs(Config, Profile));
+
         MyIni Config => Memo.Of(() =>
-            {
-                var myIni = new MyIni();
-                myIni.TryParse(Me.CustomData);
-                return myIni;
-            }, "GetConfig", Memo.Refs(Me.CustomData));
+        {
+            var myIni = new MyIni();
+            myIni.TryParse(Me.CustomData);
+            return myIni;
+        }, "GetConfig", Memo.Refs(Me.CustomData));
 
         void Stop()
         {
