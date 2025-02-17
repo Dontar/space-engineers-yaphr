@@ -100,7 +100,7 @@ namespace IngameScript
             {
                 if (Sections.Select(d => d.Position(position)).ToArray().All(d => d))
                 {
-                    Mode = "off";
+                    Mode = position == "Park" ? "off" : "control";
                     Stop();
                 }
                 yield return null;
