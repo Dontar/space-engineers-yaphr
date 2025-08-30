@@ -74,46 +74,38 @@ namespace IngameScript
                 return new object[] { p1 };
             }
 
-            public static R Of<R>(Func<R> f, string context, object[] dep)
+            private static object IntOf(Func<object> f, string context, object dep)
             {
                 if (_dependencyCache.Count > MaxCacheSize)
                 {
                     EvictOldestCacheItem();
                 }
 
+                bool isAge = dep is int;
                 CacheValue value;
                 if (_dependencyCache.TryGetValue(context, out value))
                 {
-                    if (value.Dependency.SequenceEqual(dep))
+                    bool isNotStale = isAge ? value.Decay() : value.Dependency.SequenceEqual((object[])dep);
+                    if (isNotStale)
                     {
-                        return (R)value.Value;
+                        return value.Value;
                     }
                 }
 
                 var result = f();
-                _dependencyCache[context] = new CacheValue(dep, result);
+                _dependencyCache[context] = isAge ? new CacheValue((int)dep, result) : new CacheValue((object[])dep, result);
                 return result;
             }
-            public static R Of<R>(Func<R> f, string context, int age)
+
+            public static R Of<R>(Func<R> f, string context, object dep)
             {
-                if (_dependencyCache.Count > MaxCacheSize)
-                {
-                    EvictOldestCacheItem();
-                }
-
-                CacheValue value;
-                if (_dependencyCache.TryGetValue(context, out value))
-                {
-                    if (value.Decay())
-                    {
-                        return (R)value.Value;
-                    }
-                }
-
-                var result = f();
-                _dependencyCache[context] = new CacheValue(age, result);
-                return result;
+                return (R)IntOf(() => f(), context, dep);
             }
+            public static void Of(Action f, string context, object dep)
+            {
+                IntOf(() => { f(); return null; }, context, dep);
+            }
+
             private static void EvictOldestCacheItem()
             {
                 var oldestKey = _dependencyCache.Last().Key;
@@ -167,10 +159,10 @@ namespace IngameScript
 
             public static IEnumerable<IMyTextSurface> GetScreens(string screenTag = "")
             {
-                return GetScreens(b => IsTagged(b, screenTag));
+                return GetScreens(b => IsTagged(b, screenTag), screenTag);
             }
 
-            public static IEnumerable<IMyTextSurface> GetScreens(Func<IMyTerminalBlock, bool> collect)
+            public static IEnumerable<IMyTextSurface> GetScreens(Func<IMyTerminalBlock, bool> collect, string screenTag = "")
             {
                 var screens = GetBlocks<IMyTerminalBlock>(b => (b is IMyTextSurface || HasScreens(b)) && collect(b));
                 return screens.Select(s =>
@@ -178,7 +170,7 @@ namespace IngameScript
                     if (s is IMyTextSurface)
                         return s as IMyTextSurface;
                     var provider = s as IMyTextSurfaceProvider;
-                    var regex = new System.Text.RegularExpressions.Regex(@"^@(\d+)$", System.Text.RegularExpressions.RegexOptions.Multiline);
+                    var regex = new System.Text.RegularExpressions.Regex(screenTag + @"@(\d+)$", System.Text.RegularExpressions.RegexOptions.Multiline);
                     var match = regex.Match(s.CustomData);
                     if (match.Success)
                     {
@@ -238,13 +230,13 @@ namespace IngameScript
                 return block is IMyTextSurfaceProvider && (block as IMyTextSurfaceProvider).SurfaceCount > 0;
             }
 
-            public static void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, IMyGyro gyro, MatrixD worldMatrix)
+            public static void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, float power, IMyGyro gyro, MatrixD worldMatrix)
             {
-                ApplyGyroOverride(pitchSpeed, yawSpeed, rollSpeed, new IMyGyro[] { gyro }, worldMatrix);
+                ApplyGyroOverride(pitchSpeed, yawSpeed, rollSpeed, power, new IMyGyro[] { gyro }, worldMatrix);
 
             }
 
-            public static void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, IEnumerable<IMyGyro> gyros, MatrixD worldMatrix)
+            public static void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, float power, IEnumerable<IMyGyro> gyros, MatrixD worldMatrix)
             {
                 var rotationVec = new Vector3D(pitchSpeed, yawSpeed, rollSpeed);
                 var relativeRotationVec = Vector3D.TransformNormal(rotationVec, worldMatrix);
@@ -255,6 +247,8 @@ namespace IngameScript
                     g.Pitch = (float)transformedRotationVec.X;
                     g.Yaw = (float)transformedRotationVec.Y;
                     g.Roll = (float)transformedRotationVec.Z;
+                    g.GyroOverride = true;
+                    g.GyroPower = power;
                 }
             }
 
@@ -322,11 +316,16 @@ namespace IngameScript
                 }
             }
 
+            public static string VectorToGPS(Vector3D coords, string name)
+            {
+                return string.Format("GPS:{0}:{1:R}:{2:R}:{3:R}:", name, coords.X, coords.Y, coords.Z);
+            }
+
         }
 
         static class TaskManager
         {
-            public struct Task
+            class Task
             {
                 public IEnumerator Enumerator;
                 public IEnumerable Ref;
@@ -338,54 +337,29 @@ namespace IngameScript
             }
             static readonly List<Task> tasks = new List<Task>();
 
-            public static int AddTask(IEnumerable task, float intervalSeconds = 0)
+            public static int AddTask(IEnumerable task, float intervalSeconds = 0, bool IsPaused = false, bool IsOnce = false)
             {
-                Task item = new Task
+                tasks.Add(new Task
                 {
                     Ref = task,
                     Enumerator = task.GetEnumerator(),
                     Interval = TimeSpan.FromSeconds(intervalSeconds),
                     TimeSinceLastRun = TimeSpan.Zero,
                     TaskResult = null,
-                    IsPaused = false,
-                    IsOnce = false
-                };
-                tasks.Add(item);
+                    IsPaused = IsPaused,
+                    IsOnce = IsOnce
+                });
                 return tasks.Count - 1;
             }
-
-            public static int AddTaskOnce(IEnumerable task, float intervalSeconds = 0)
+            public static int AddTaskOnce(IEnumerable task, float intervalSeconds = 0, bool IsPaused = false)
             {
-                Task item = new Task
-                {
-                    Ref = task,
-                    Enumerator = task.GetEnumerator(),
-                    Interval = TimeSpan.FromSeconds(intervalSeconds),
-                    TimeSinceLastRun = TimeSpan.Zero,
-                    TaskResult = null,
-                    IsPaused = false,
-                    IsOnce = true
-                };
-                tasks.Add(item);
-                return tasks.Count - 1;
+                return AddTask(task, intervalSeconds, IsPaused, true);
             }
 
-            public static void PauseTask(int taskId, bool pause)
-            {
-                tasks[taskId] = new Task
-                {
-                    Ref = tasks[taskId].Ref,
-                    Enumerator = tasks[taskId].Enumerator,
-                    Interval = tasks[taskId].Interval,
-                    TimeSinceLastRun = tasks[taskId].TimeSinceLastRun,
-                    TaskResult = tasks[taskId].TaskResult,
-                    IsPaused = pause,
-                    IsOnce = tasks[taskId].IsOnce
-                };
-            }
+            public static void PauseTask(int taskId, bool pause) => tasks[taskId].IsPaused = pause;
 
+            public static T GetTaskResult<T>() => tasks.Select(t => t.TaskResult).OfType<T>().FirstOrDefault();
             public static TimeSpan CurrentTaskLastRun;
-            public static IEnumerable<object> TaskResults => tasks.Select(t => t.TaskResult);
             public static void RunTasks(TimeSpan TimeSinceLastRun)
             {
                 for (int i = tasks.Count - 1; i >= 0; i--)
@@ -396,7 +370,6 @@ namespace IngameScript
                     task.TaskResult = null;
 
                     task.TimeSinceLastRun += TimeSinceLastRun;
-                    tasks[i] = task;
                     if (task.TimeSinceLastRun < task.Interval) continue;
 
                     CurrentTaskLastRun = task.TimeSinceLastRun;
@@ -418,7 +391,6 @@ namespace IngameScript
                     }
                     task.TimeSinceLastRun = TimeSpan.Zero;
                     task.TaskResult = task.Enumerator.Current;
-                    tasks[i] = task;
                 }
             }
         }

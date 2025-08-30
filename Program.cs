@@ -101,6 +101,7 @@ namespace IngameScript
                 if (Sections.Select(d => d.Position(position)).ToArray().All(d => d))
                 {
                     Mode = position == "Park" ? "off" : "control";
+                    // ToggleVehicleControl(Mode != "control");
                     Stop();
                 }
                 yield return null;
@@ -163,6 +164,7 @@ namespace IngameScript
             {
                 case "toggle":
                     Mode = Mode != "control" ? "control" : "off";
+                    // ToggleVehicleControl(Mode != "control");
                     break;
                 case "set_park":
                 case "set_work":
@@ -171,6 +173,7 @@ namespace IngameScript
                 case "park":
                 case "work":
                     Mode = cmd;
+                    // ToggleVehicleControl(Mode != "control");
                     break;
                 default:
                     if (cmd.StartsWith("add"))
@@ -254,5 +257,16 @@ namespace IngameScript
                 Array.ForEach(s.Blocks, b => Descriptor.Set(b, 0f));
             }
         }
+
+        // void ToggleVehicleControl(bool activate)
+        // {
+        //     var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
+        //     if (controller != null)
+        //     {
+        //         controller.ControlWheels = activate;
+        //         controller.ControlThrusters = activate;
+        //         controller.ApplyAction("ControlGyros", new List<TerminalActionParameter>() { TerminalActionParameter.Get(activate) });
+        //     }
+        // }
     }
 }
