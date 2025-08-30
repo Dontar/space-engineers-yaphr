@@ -50,14 +50,12 @@ namespace IngameScript
                     Action = (m, j) =>
                     {
                         var myIni = program.Config;
-                        m.Where(s => s.Label.StartsWith("[x]"))
-                            .ToList()
-                            .ForEach(s =>
-                            {
-                                var section = s.Label.Substring(4);
-                                Array.ForEach(InputNames, i => myIni.Set($"{program.Profile}/{section}", i, "0"));
-                                myIni.Set($"{program.Profile}/{section}", "Tuning", "0/15/0/2");
-                            });
+                        foreach (var s in m.Where(s => s.Label.StartsWith("[x]")))
+                        {
+                            var section = s.Label.Substring(4);
+                            Array.ForEach(InputNames, i => myIni.Set($"{program.Profile}/{section}", i, "0"));
+                            myIni.Set($"{program.Profile}/{section}", "Tuning", "0/15/0/2");
+                        }
                         program.Me.CustomData = myIni.ToString();
                         m[1].Label = "Save";
                     }

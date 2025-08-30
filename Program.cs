@@ -210,13 +210,13 @@ namespace IngameScript
                 return new { k.Name, Section = section, Profile = profile, Value = Config.Get(k).ToString() };
             });
 
-            if (p.Where(k => k.Profile == v).Any()) return;
+            if (p.Any(k => k.Profile == v)) return;
 
-            p.Where(k => k.Profile == "default").ToList().ForEach(i =>
+            foreach (var i in p.Where(k => k.Profile == "default"))
             {
                 Config.Set($"{v}/{i.Section}", i.Name, i.Value);
                 Me.CustomData = Config.ToString();
-            });
+            }
         }
 
         IEnumerable<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => b.CubeGrid == Me.CubeGrid && b.CanControlShip), "ControlCrane", 100);
