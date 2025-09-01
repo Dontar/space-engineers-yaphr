@@ -32,6 +32,15 @@ namespace IngameScript
                 var rotor = block as IMyMotorStator;
                 rotor.TargetVelocityRPM = speed;
             }
+            public static void SetPowerAndLock(IMyTerminalBlock block, bool locked)
+            {
+                if (block is IMyMotorStator)
+                {
+                    var rotor = block as IMyMotorStator;
+                    rotor.RotorLock = locked;
+                }
+                (block as IMyFunctionalBlock).Enabled = !locked;
+            }
         }
 
         public static readonly string[] InputNames = new string[] { RotationIndicatorX, RotationIndicatorY, RollIndicator, MoveIndicatorX, MoveIndicatorY, MoveIndicatorZ };

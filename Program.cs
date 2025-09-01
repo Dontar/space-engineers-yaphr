@@ -103,6 +103,7 @@ namespace IngameScript
                     Mode = position == "Park" ? "off" : "control";
                     // ToggleVehicleControl(Mode != "control");
                     Stop();
+                    LockAndPowerOff(Mode == "off");
                 }
                 yield return null;
             }
@@ -164,6 +165,7 @@ namespace IngameScript
             {
                 case "toggle":
                     Mode = Mode != "control" ? "control" : "off";
+                    LockAndPowerOff(false);
                     // ToggleVehicleControl(Mode != "control");
                     break;
                 case "set_park":
@@ -173,6 +175,7 @@ namespace IngameScript
                 case "park":
                 case "work":
                     Mode = cmd;
+                    LockAndPowerOff(false);
                     // ToggleVehicleControl(Mode != "control");
                     break;
                 default:
@@ -219,7 +222,7 @@ namespace IngameScript
             }
         }
 
-        IEnumerable<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => b.CubeGrid == Me.CubeGrid && b.CanControlShip), "ControlCrane", 100);
+        IEnumerable<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip), "ControlCrane", 100);
 
         IEnumerable<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
 
@@ -255,6 +258,15 @@ namespace IngameScript
             {
                 s.Reset();
                 Array.ForEach(s.Blocks, b => Descriptor.Set(b, 0f));
+            }
+        }
+
+        void LockAndPowerOff(bool locked)
+        {
+            foreach (var s in Sections)
+            {
+                s.Reset();
+                Array.ForEach(s.Blocks, b => Descriptor.SetPowerAndLock(b, locked));
             }
         }
 
