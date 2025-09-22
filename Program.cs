@@ -100,7 +100,6 @@ namespace IngameScript
                 case "toggle":
                     Mode = Mode != "control" ? "control" : "off";
                     LockAndPowerOff(false);
-                    // ToggleVehicleControl(Mode != "control");
                     break;
                 case "set_park":
                 case "set_work":
@@ -110,7 +109,6 @@ namespace IngameScript
                 case "work":
                     Mode = cmd;
                     LockAndPowerOff(false);
-                    // ToggleVehicleControl(Mode != "control");
                     break;
                 default:
                     if (cmd.StartsWith("add"))
@@ -177,11 +175,12 @@ namespace IngameScript
 
         private IEnumerable RenderMenuTask()
         {
+            var pbScreen = Me.GetSurface(0);
             while (true)
             {
                 foreach (var s in Screens)
                 {
-                    if (s == Me.GetSurface(0)) _LogoTask.Pause();
+                    if (s == pbScreen) _LogoTask.Pause();
                     menuSystem.Render(s);
                 }
                 yield return null;
