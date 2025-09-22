@@ -1,26 +1,9 @@
-﻿using Sandbox.Game.EntityComponents;
-using Sandbox.Game.VoiceChat;
-using Sandbox.ModAPI.Ingame;
-using Sandbox.ModAPI.Interfaces;
-using SpaceEngineers.Game.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Resources;
-using System.Text;
-using System.Threading.Tasks;
-using VRage;
-using VRage.Collections;
-using VRage.Game;
-using VRage.Game.Components;
-using VRage.Game.GUI.TextPanel;
-using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Game.ObjectBuilders.Definitions;
-using VRageMath;
-using VRageRender.ExternalApp;
 
 namespace IngameScript
 {
@@ -33,33 +16,60 @@ namespace IngameScript
         const string MoveIndicatorX = "Left/Right";
         const string MoveIndicatorY = "Up/Down";
         const string MoveIndicatorZ = "Forward/Backward";
-        const string screenTag = "[CC]";
+        const string screenTag = "{Yaphr}";
         #endregion
+
+        readonly CraneControlMenuManager menuSystem;
+
+        string Mode = "off";
+        string Profile = "default";
+        TaskManager.ITask _LogoTask;
+        TaskManager.ITask _ControlTask;
+        TaskManager.ITask _ParkTask;
+        TaskManager.ITask _WorkTask;
+
+        IEnumerable<IMyShipController> Controllers => Memo.Of("ControlCrane", 100, () => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip));
+
+        MyIni Config => Memo.Of("GetConfig", Me.CustomData, () =>
+        {
+            var myIni = new MyIni();
+            myIni.TryParse(Me.CustomData);
+            return myIni;
+        });
+
+        IEnumerable<IMyTextSurface> Screens => Memo.Of("Screens", 100, () => Util.GetScreens(screenTag));
+
+        IEnumerable<PistonMotorWrapper> Sections => Memo.Of("Sections", new object[] { Config, Profile }, () =>
+        {
+            var opts = new List<MyIniKey>();
+            Config.GetKeys(opts);
+            return opts.Select(k =>
+            {
+                var p = k.Section.Split('/');
+                var profile = p.Length < 2 ? "default" : p.First();
+                var section = p.Last();
+                return new { k.Name, Section = section, Profile = profile, Value = Config.Get(k).ToString() };
+            })
+            .Where(i => i.Profile == Profile)
+            .GroupBy(
+                iniKey => iniKey.Section,
+                theIniKey => theIniKey,
+                (section, theIniKey) => new PistonMotorWrapper(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
+            .ToArray();
+        });
 
         public Program()
         {
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
-            TaskManager.AddTask(Util.StatusMonitor(this));
-            TaskManager.AddTask(RenderMenu(), 1.7f);
-            _ControlTask = TaskManager.AddTask(ControlCrane());
-            _ParkTask = TaskManager.AddTask(PositionCrane("Park"));
-            _WorkTask = TaskManager.AddTask(PositionCrane("Work"));
-            _LogoTask = TaskManager.AddTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
-            TaskManager.PauseTask(_ControlTask, true);
-            TaskManager.PauseTask(_ParkTask, true);
-            TaskManager.PauseTask(_WorkTask, true);
+            TaskManager.RunTask(Util.StatusMonitor(this));
+            TaskManager.RunTask(RenderMenuTask()).Every(1.7f);
+            _ControlTask = TaskManager.RunTask(ControlCraneTask()).Pause();
+            _ParkTask = TaskManager.RunTask(PositionCraneTask("Park")).Pause();
+            _WorkTask = TaskManager.RunTask(PositionCraneTask("Work")).Pause();
+            _LogoTask = TaskManager.RunTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
         }
-
-        readonly CraneControlMenuManager menuSystem;
-
-        string Mode = "off";
-        string Profile = "default";
-        int _LogoTask;
-        int _ControlTask;
-        int _ParkTask;
-        int _WorkTask;
 
         public void Main(string argument, UpdateType updateSource)
         {
@@ -74,87 +84,11 @@ namespace IngameScript
                 return;
             }
 
-            TaskManager.PauseTask(_ControlTask, Mode != "control");
-            TaskManager.PauseTask(_ParkTask, Mode != "park");
-            TaskManager.PauseTask(_WorkTask, Mode != "work");
-            TaskManager.RunTasks(Runtime.TimeSinceLastRun);
-        }
+            _ControlTask.Pause(Mode != "control");
+            _ParkTask.Pause(Mode != "park");
+            _WorkTask.Pause(Mode != "work");
 
-        IEnumerable ControlCrane()
-        {
-            while (true)
-            {
-                var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
-                foreach (var descriptor in Sections)
-                {
-                    var direction = ReadControllerValue(controller, descriptor.OP);
-                    descriptor.Control(direction);
-                }
-                yield return null;
-            }
-        }
-
-        IEnumerable PositionCrane(string position)
-        {
-            while (true)
-            {
-                if (Sections.Select(d => d.Position(position)).ToArray().All(d => d))
-                {
-                    Mode = position == "Park" ? "off" : "control";
-                    // ToggleVehicleControl(Mode != "control");
-                    Stop();
-                    LockAndPowerOff(Mode == "off");
-                }
-                yield return null;
-            }
-        }
-
-        IEnumerable SavePositions(string optName)
-        {
-            foreach (var info in Sections)
-            {
-                if (info.Blocks.Length == 0) continue;
-                var ini = Config;
-                var descriptor = Descriptor.Get(info.Blocks.First());
-                ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{descriptor.Position}");
-            }
-            Me.CustomData = Config.ToString();
-            yield return null;
-        }
-
-        private IEnumerable RenderMenu()
-        {
-            while (true)
-            {
-                foreach (var s in Screens)
-                {
-                    if (s == Me.GetSurface(0)) TaskManager.PauseTask(_LogoTask, true);
-                    menuSystem.Render(s);
-                }
-                yield return null;
-            }
-        }
-
-        float ReadControllerValue(IMyShipController controller, string name)
-        {
-            if (controller == null) return 0;
-            switch (name)
-            {
-                case MoveIndicatorX:
-                    return controller.MoveIndicator.X;
-                case MoveIndicatorY:
-                    return controller.MoveIndicator.Y;
-                case MoveIndicatorZ:
-                    return controller.MoveIndicator.Z;
-                case RollIndicator:
-                    return controller.RollIndicator;
-                case RotationIndicatorY:
-                    return controller.RotationIndicator.Y;
-                case RotationIndicatorX:
-                    return controller.RotationIndicator.X;
-                default:
-                    return 0;
-            }
+            TaskManager.Tick(Runtime.TimeSinceLastRun);
         }
 
         void ProcessCommands(string command)
@@ -170,7 +104,7 @@ namespace IngameScript
                     break;
                 case "set_park":
                 case "set_work":
-                    TaskManager.AddTaskOnce(SavePositions(char.ToUpper(cmd[4]) + cmd.Substring(5)));
+                    TaskManager.RunTask(SavePositionsTask(char.ToUpper(cmd[4]) + cmd.Substring(5))).Once();
                     break;
                 case "park":
                 case "work":
@@ -200,6 +134,82 @@ namespace IngameScript
             }
         }
 
+        IEnumerable ControlCraneTask()
+        {
+            while (true)
+            {
+                var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
+                foreach (var descriptor in Sections)
+                {
+                    var direction = ReadControllerValue(controller, descriptor.OP);
+                    descriptor.Control(direction);
+                }
+                yield return null;
+            }
+        }
+
+        IEnumerable PositionCraneTask(string position)
+        {
+            while (true)
+            {
+                if (Sections.Select(d => d.Position(position)).ToArray().All(d => d))
+                {
+                    Mode = position == "Park" ? "off" : "control";
+                    Stop();
+                    LockAndPowerOff(Mode == "off");
+                }
+                yield return null;
+            }
+        }
+
+        IEnumerable SavePositionsTask(string optName)
+        {
+            foreach (var info in Sections)
+            {
+                if (info.Blocks.Length == 0) continue;
+                var ini = Config;
+                var descriptor = PistonMotorUtil.Get(info.Blocks.First());
+                ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{descriptor.Position}");
+            }
+            Me.CustomData = Config.ToString();
+            yield return null;
+        }
+
+        private IEnumerable RenderMenuTask()
+        {
+            while (true)
+            {
+                foreach (var s in Screens)
+                {
+                    if (s == Me.GetSurface(0)) _LogoTask.Pause();
+                    menuSystem.Render(s);
+                }
+                yield return null;
+            }
+        }
+
+        float ReadControllerValue(IMyShipController controller, string name)
+        {
+            if (controller == null) return 0;
+            switch (name)
+            {
+                case MoveIndicatorX:
+                    return controller.MoveIndicator.X;
+                case MoveIndicatorY:
+                    return controller.MoveIndicator.Y;
+                case MoveIndicatorZ:
+                    return controller.MoveIndicator.Z;
+                case RollIndicator:
+                    return controller.RollIndicator;
+                case RotationIndicatorY:
+                    return controller.RotationIndicator.Y;
+                case RotationIndicatorX:
+                    return controller.RotationIndicator.X;
+                default:
+                    return 0;
+            }
+        }
+
         private void AddProfile(string v)
         {
             var opts = new List<MyIniKey>();
@@ -222,42 +232,12 @@ namespace IngameScript
             }
         }
 
-        IEnumerable<IMyShipController> Controllers => Memo.Of(() => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip), "ControlCrane", 100);
-
-        IEnumerable<IMyTextSurface> Screens => Memo.Of(() => Util.GetScreens(screenTag), "Screens", 100);
-
-        IEnumerable<PIDDescriptor> Sections => Memo.Of(() =>
-        {
-            var opts = new List<MyIniKey>();
-            Config.GetKeys(opts);
-            return opts.Select(k =>
-            {
-                var p = k.Section.Split('/');
-                var profile = p.Length < 2 ? "default" : p.First();
-                var section = p.Last();
-                return new { k.Name, Section = section, Profile = profile, Value = Config.Get(k).ToString() };
-            })
-            .Where(i => i.Profile == Profile)
-            .GroupBy(
-                iniKey => iniKey.Section,
-                theIniKey => theIniKey,
-                (section, theIniKey) => new PIDDescriptor(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
-            .ToArray();
-        }, "Sections", Memo.Refs(Config, Profile));
-
-        MyIni Config => Memo.Of(() =>
-        {
-            var myIni = new MyIni();
-            myIni.TryParse(Me.CustomData);
-            return myIni;
-        }, "GetConfig", Memo.Refs(Me.CustomData));
-
         void Stop()
         {
             foreach (var s in Sections)
             {
                 s.Reset();
-                Array.ForEach(s.Blocks, b => Descriptor.Set(b, 0f));
+                Array.ForEach(s.Blocks, b => PistonMotorUtil.Set(b, 0f));
             }
         }
 
@@ -266,19 +246,8 @@ namespace IngameScript
             foreach (var s in Sections)
             {
                 s.Reset();
-                Array.ForEach(s.Blocks, b => Descriptor.SetPowerAndLock(b, locked));
+                Array.ForEach(s.Blocks, b => PistonMotorUtil.SetPowerAndLock(b, locked));
             }
         }
-
-        // void ToggleVehicleControl(bool activate)
-        // {
-        //     var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
-        //     if (controller != null)
-        //     {
-        //         controller.ControlWheels = activate;
-        //         controller.ControlThrusters = activate;
-        //         controller.ApplyAction("ControlGyros", new List<TerminalActionParameter>() { TerminalActionParameter.Get(activate) });
-        //     }
-        // }
     }
 }

@@ -1,13 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Sandbox.ModAPI.Ingame;
-using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Utils;
-using VRage.Game.GUI.TextPanel;
-using VRageMath;
 
 namespace IngameScript
 {
@@ -19,8 +14,8 @@ namespace IngameScript
             {
                 var mainMenu = CreateMenu("Crane control");
                 mainMenu.AddArray(new OptionItem[] {
-                    new OptionItem { Label = "Configuration >", Action = (menu, index) => BuildConfigMenu() },
-                    new OptionItem { Label = "PID controls >", Action = (menu, index) => BuildPidControlsMenu() },
+                    new OptionItem { Label = "Setup >", Action = (menu, index) => BuildConfigMenu() },
+                    new OptionItem { Label = "Configuration >", Action = (menu, index) => BuildPidControlsMenu() },
                     new OptionItem { Label = "Profile", Value = (m,j) => program.Profile, IncDec = (m, j, d) => {
                         var sections = new List<string>();
                         program.Config.GetSections(sections);
@@ -37,7 +32,7 @@ namespace IngameScript
 
             void BuildConfigMenu()
             {
-                var configMenu = CreateMenu("Configuration");
+                var configMenu = CreateMenu("Setup");
                 Action<Menu, int> toggleCheckBox = (m, j) =>
                 {
                     m[j].Label = m[j].Label.StartsWith("[ ]") ? m[j].Label.Replace("[ ]", "[x]") : m[j].Label.Replace("[x]", "[ ]");
@@ -87,11 +82,11 @@ namespace IngameScript
 
             void BuildPidControlsMenu()
             {
-                var blocksMenu = CreateMenu("PID Controls");
+                var blocksMenu = CreateMenu("Configuration");
                 blocksMenu.AddArray(program.Sections.Select(info => new OptionItem { Label = info.Section + " >", Action = (_, i) => BuildPidControlsSubMenu(info) }).ToArray());
             }
 
-            void BuildPidControlsSubMenu(PIDDescriptor info)
+            void BuildPidControlsSubMenu(PistonMotorWrapper info)
             {
                 var step = 1;
                 var pidMenu = CreateMenu(info.Section);

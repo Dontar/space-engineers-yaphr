@@ -10,16 +10,16 @@ namespace IngameScript
 {
     partial class Program
     {
-        struct Descriptor
+        struct PistonMotorUtil
         {
             public float Max;
             public float Current;
             public float Position;
-            public static Descriptor Get(IMyTerminalBlock block)
+            public static PistonMotorUtil Get(IMyTerminalBlock block)
             {
                 return block is IMyExtendedPistonBase
-                ? new Descriptor() { Max = 5.0f, Current = (block as IMyExtendedPistonBase).Velocity, Position = (block as IMyExtendedPistonBase).CurrentPosition }
-                : new Descriptor() { Max = 30.0f, Current = (block as IMyMotorStator).TargetVelocityRPM, Position = (block as IMyMotorStator).Angle };
+                ? new PistonMotorUtil() { Max = 5.0f, Current = (block as IMyExtendedPistonBase).Velocity, Position = (block as IMyExtendedPistonBase).CurrentPosition }
+                : new PistonMotorUtil() { Max = 30.0f, Current = (block as IMyMotorStator).TargetVelocityRPM, Position = (block as IMyMotorStator).Angle };
             }
             public static void Set(IMyTerminalBlock block, float speed)
             {
@@ -44,7 +44,7 @@ namespace IngameScript
         }
 
         public static readonly string[] InputNames = new string[] { RotationIndicatorX, RotationIndicatorY, RollIndicator, MoveIndicatorX, MoveIndicatorY, MoveIndicatorZ };
-        class PIDDescriptor : PID
+        class PistonMotorWrapper : PID
         {
             public IMyTerminalBlock[] Blocks;
             public Dictionary<string, string> INI;
@@ -53,7 +53,7 @@ namespace IngameScript
             public double[] PIDTune;
             public string Section;
 
-            public PIDDescriptor(string section, Dictionary<string, string> ini) : base(0, 0, 0, 1d / 6d, 0)
+            public PistonMotorWrapper(string section, Dictionary<string, string> ini) : base(0, 0, 0, 1d / 6d, 0)
             {
                 var op = ini.FirstOrDefault(o => InputNames.Contains(o.Key) && o.Value != "0");
 
@@ -84,13 +84,13 @@ namespace IngameScript
                 if (Blocks.Length == 0) return;
                 var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
                 var block = Blocks.First();
-                var velocityState = Descriptor.Get(block);
+                var velocityState = PistonMotorUtil.Get(block);
                 var targetVelocity = MathHelper.Clamp(DesiredVelocity, -velocityState.Max, velocityState.Max);
 
                 var error = targetVelocity * direction - velocityState.Current;
 
                 var output = (float)Math.Round(Signal(error, time, PIDTune), 3);
-                Array.ForEach(Blocks, b => Descriptor.Set(b, output));
+                Array.ForEach(Blocks, b => PistonMotorUtil.Set(b, output));
             }
 
             public bool Position(string position)
@@ -101,12 +101,12 @@ namespace IngameScript
                 var desiredPos = value.Skip(4).Select(float.Parse).FirstOrDefault();
                 var tune = value.Take(4).Select(double.Parse).ToArray();
                 var block = Blocks.First();
-                var positionState = Descriptor.Get(block);
+                var positionState = PistonMotorUtil.Get(block);
 
                 var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - positionState.Position) : desiredPos - positionState.Position;
 
                 var output = (float)Math.Round(Signal(error, time, tune), 3);
-                Array.ForEach(Blocks, b => Descriptor.Set(b, output));
+                Array.ForEach(Blocks, b => PistonMotorUtil.Set(b, output));
                 return Math.Abs(error) < 0.01;
             }
         }
