@@ -148,6 +148,8 @@ For starters use the values set by default by the script. They are tuned so that
 [h2] Small crane to demonstrate the script: [/h2]
 https://steamcommunity.com/sharedfiles/filedetails/?id=3275471377
 
+The source code for this script is here https://github.com/Dontar/space-engineers-yaphr
+
 Shout out to malware-dev for the great article on PID controllers.
 (He is the author of the current version of the Programmable Block in Space Engineers)
 
