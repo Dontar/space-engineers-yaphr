@@ -63,7 +63,7 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
-            TaskManager.RunTask(Util.StatusMonitor(this));
+            TaskManager.RunTask(Util.StatusMonitorTask(this));
             TaskManager.RunTask(RenderMenuTask()).Every(1.7f);
             _ControlTask = TaskManager.RunTask(ControlCraneTask()).Pause();
             _ParkTask = TaskManager.RunTask(PositionCraneTask("Park")).Pause();
