@@ -69,7 +69,7 @@ namespace IngameScript
                 program.Config.GetSections(configuredGroups);
 
                 var allBlocks = new List<IMyTerminalBlock>();
-                program.GridTerminalSystem.GetBlocksOfType(allBlocks, b => b is IMyExtendedPistonBase || b is IMyMotorStator);
+                program.GridTerminalSystem.GetBlocksOfType(allBlocks, b => b is IMyMechanicalConnectionBlock && !(b is IMyMotorSuspension));
 
                 var list = groups
                     .Select(g => g.Name)

@@ -32,7 +32,7 @@ namespace IngameScript
                 var rotor = block as IMyMotorStator;
                 rotor.TargetVelocityRPM = speed;
             }
-            public static void SetPowerAndLock(IMyTerminalBlock block, bool locked)
+            public static void SetEnabledAndLock(IMyTerminalBlock block, bool locked)
             {
                 if (block is IMyMotorStator)
                 {
@@ -65,6 +65,12 @@ namespace IngameScript
 
                 PIDTune = ini.GetValueOrDefault("Tuning", "0/15/0/2").Split('/').Select(double.Parse).ToArray();
                 Tune(PIDTune);
+            }
+
+            public PistonMotorWrapper(IMyTerminalBlock[] blocks) : base(0, 0, 0, 1d / 60d, 0)
+            {
+                Blocks = blocks;
+                Tune(new[] { 0d, 15d, 0d, 2d });
             }
 
             public void UpdateIni(string Profile, MyIni ini)
@@ -106,6 +112,21 @@ namespace IngameScript
                 var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - positionState.Position) : desiredPos - positionState.Position;
 
                 var output = (float)Math.Round(Signal(error, time, tune), 3);
+                Array.ForEach(Blocks, b => PistonMotorUtil.Set(b, output));
+                return Math.Abs(error) < 0.01;
+            }
+
+            public bool Position(float position)
+            {
+                if (Blocks.Length == 0) return true;
+                var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
+                var desiredPos = position;
+                var block = Blocks.First();
+                var positionState = PistonMotorUtil.Get(block);
+
+                var error = (block is IMyMotorStator) ? MathHelper.WrapAngle(desiredPos - positionState.Position) : desiredPos - positionState.Position;
+
+                var output = (float)Math.Round(Signal(error, time), 3);
                 Array.ForEach(Blocks, b => PistonMotorUtil.Set(b, output));
                 return Math.Abs(error) < 0.01;
             }

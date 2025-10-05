@@ -1,8 +1,10 @@
 ﻿using Sandbox.ModAPI.Ingame;
+using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
@@ -10,14 +12,16 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         #region mdk preserve
+        const string screenTag = "{Yaphr}";
+        const string craneGroup = "{Yaphr} Crane";
+        #endregion
+
         const string RotationIndicatorY = "Yaw";
         const string RotationIndicatorX = "Pitch";
         const string RollIndicator = "Roll";
         const string MoveIndicatorX = "Left/Right";
         const string MoveIndicatorY = "Up/Down";
         const string MoveIndicatorZ = "Forward/Backward";
-        const string screenTag = "{Yaphr}";
-        #endregion
 
         readonly CraneControlMenuManager menuSystem;
 
@@ -43,6 +47,7 @@ namespace IngameScript
         {
             var opts = new List<MyIniKey>();
             Config.GetKeys(opts);
+            if (opts.Count == 0) return new PistonMotorWrapper[] { };
             return opts.Select(k =>
             {
                 var p = k.Section.Split('/');
@@ -245,7 +250,7 @@ namespace IngameScript
             foreach (var s in Sections)
             {
                 s.Reset();
-                Array.ForEach(s.Blocks, b => PistonMotorUtil.SetPowerAndLock(b, locked));
+                Array.ForEach(s.Blocks, b => PistonMotorUtil.SetEnabledAndLock(b, locked));
             }
         }
     }
