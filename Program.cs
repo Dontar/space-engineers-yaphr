@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
+using VRageMath;
 
 namespace IngameScript
 {
@@ -26,6 +27,7 @@ namespace IngameScript
         readonly CraneControlMenuManager menuSystem;
 
         string Mode = "off";
+        bool KeepAlign = false;
         string Profile = "default";
         TaskManager.ITask _LogoTask;
         TaskManager.ITask _ControlTask;
@@ -61,6 +63,12 @@ namespace IngameScript
                 theIniKey => theIniKey,
                 (section, theIniKey) => new PistonMotorWrapper(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
             .ToArray();
+        });
+
+        IMyTerminalBlock BaseBlock => Memo.Of("BaseBlock", Config, () =>
+        {
+            var blocks = Util.GetGroup<IMyMechanicalConnectionBlock>(craneGroup);
+            return blocks.FirstOrDefault(b => !blocks.Any(o => o.TopGrid == b.CubeGrid));
         });
 
         public Program()
@@ -106,6 +114,9 @@ namespace IngameScript
                     Mode = Mode != "control" ? "control" : "off";
                     LockAndPowerOff(false);
                     break;
+                case "align":
+                    KeepAlign = !KeepAlign;
+                    break;
                 case "set_park":
                 case "set_work":
                     TaskManager.RunTask(SavePositionsTask(char.ToUpper(cmd[4]) + cmd.Substring(5))).Once();
@@ -144,6 +155,12 @@ namespace IngameScript
                 var controller = Controllers.FirstOrDefault(c => c.IsUnderControl);
                 foreach (var descriptor in Sections)
                 {
+                    if (KeepAlign && descriptor.KeepAlignedTo != "None")
+                    {
+                        var dirVector = BaseBlock.WorldMatrix.GetDirectionVector((Base6Directions.Direction)Enum.Parse(typeof(Base6Directions.Direction), descriptor.KeepAlignedTo));
+                        descriptor.SetPosition(dirVector);
+                        continue;
+                    }
                     var direction = ReadControllerValue(controller, descriptor.OP);
                     descriptor.Control(direction);
                 }
@@ -155,7 +172,7 @@ namespace IngameScript
         {
             while (true)
             {
-                if (Sections.Select(d => d.Position(position)).ToArray().All(d => d))
+                if (Sections.Select(d => d.SetPosition(position)).ToArray().All(d => d))
                 {
                     Mode = position == "Park" ? "off" : "control";
                     Stop();
@@ -171,8 +188,7 @@ namespace IngameScript
             {
                 if (info.Blocks.Length == 0) continue;
                 var ini = Config;
-                var descriptor = PistonMotorUtil.Get(info.Blocks.First());
-                ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{descriptor.Position}");
+                ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{info.Position}");
             }
             Me.CustomData = Config.ToString();
             yield return null;
@@ -241,7 +257,7 @@ namespace IngameScript
             foreach (var s in Sections)
             {
                 s.Reset();
-                Array.ForEach(s.Blocks, b => PistonMotorUtil.Set(b, 0f));
+                s.SetSpeed(0);
             }
         }
 
@@ -250,7 +266,7 @@ namespace IngameScript
             foreach (var s in Sections)
             {
                 s.Reset();
-                Array.ForEach(s.Blocks, b => PistonMotorUtil.SetEnabledAndLock(b, locked));
+                s.SetEnabledAndLock(locked);
             }
         }
     }

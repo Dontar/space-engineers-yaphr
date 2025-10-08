@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Sandbox.ModAPI.Ingame;
+using VRageMath;
 
 namespace IngameScript
 {
@@ -14,7 +15,7 @@ namespace IngameScript
             {
                 var mainMenu = CreateMenu("Crane control");
                 mainMenu.AddArray(new OptionItem[] {
-                    new OptionItem { Label = "Setup >", Action = (menu, index) => BuildConfigMenu() },
+                    // new OptionItem { Label = "Setup >", Action = (menu, index) => BuildConfigMenu() },
                     new OptionItem { Label = "Configuration >", Action = (menu, index) => BuildPidControlsMenu() },
                     new OptionItem { Label = "Profile", Value = (m,j) => program.Profile, IncDec = (m, j, d) => {
                         var sections = new List<string>();
@@ -23,6 +24,7 @@ namespace IngameScript
                         program.Profile = allProfiles[(Array.IndexOf(allProfiles, program.Profile) + d + (d < 0 ? allProfiles.Length : 0)) % allProfiles.Length];
                     }},
                     new OptionItem { Label = "Mode", Value = (m, j) => program.Mode, Action = (m, j) => program.ProcessCommands("toggle_mode") },
+                    new OptionItem { Label = "KeepAlign", Value = (_, __) => program.KeepAlign.ToString()},
                     new OptionItem { Label = "Park", Action = (menu, index) => program.ProcessCommands("park") },
                     new OptionItem { Label = "Work", Action = (menu, index) => program.ProcessCommands("work") },
                     new OptionItem { Label = "Set Park position", Action = (menu, index) => program.ProcessCommands("set_park") },
@@ -30,60 +32,39 @@ namespace IngameScript
                 });
             }
 
-            void BuildConfigMenu()
+            class BlockNamesComparer : EqualityComparer<IMyTerminalBlock>
             {
-                var configMenu = CreateMenu("Setup");
-                Action<Menu, int> toggleCheckBox = (m, j) =>
-                {
-                    m[j].Label = m[j].Label.StartsWith("[ ]") ? m[j].Label.Replace("[ ]", "[x]") : m[j].Label.Replace("[x]", "[ ]");
-                    m[1].Label = ".Save";
-                };
-
-                configMenu.Add(new OptionItem
-                {
-                    Label = "Save",
-                    Action = (m, j) =>
-                    {
-                        var myIni = program.Config;
-                        foreach (var s in m.Where(s => s.Label.StartsWith("[x]")))
-                        {
-                            var section = s.Label.Substring(4);
-                            Array.ForEach(InputNames, i => myIni.Set($"{program.Profile}/{section}", i, "0"));
-                            myIni.Set($"{program.Profile}/{section}", "Tuning", "0/15/0/2");
-                        }
-                        program.Me.CustomData = myIni.ToString();
-                        m[1].Label = "Save";
-                    }
-                });
-
-                var groups = new List<IMyBlockGroup>();
-                program.GridTerminalSystem.GetBlockGroups(groups);
-                var groupBlocks = groups.SelectMany(g =>
-                {
-                    var b = new List<IMyTerminalBlock>();
-                    g.GetBlocks(b);
-                    return b;
-                });
-
-                var configuredGroups = new List<string>();
-                program.Config.GetSections(configuredGroups);
-
-                var allBlocks = new List<IMyTerminalBlock>();
-                program.GridTerminalSystem.GetBlocksOfType(allBlocks, b => b is IMyMechanicalConnectionBlock && !(b is IMyMotorSuspension));
-
-                var list = groups
-                    .Select(g => g.Name)
-                    .Concat(allBlocks.Except(groupBlocks).Select(b => b.CustomName).Distinct())
-                    .Except(configuredGroups.Select(g => g.Split('/').Last()).Distinct())
-                    .Select(name => new OptionItem { Label = $"[ ] {name}", Action = toggleCheckBox }).ToArray();
-
-                configMenu.AddArray(list);
+                public override bool Equals(IMyTerminalBlock x, IMyTerminalBlock y) => x.CustomName == y.CustomName;
+                public override int GetHashCode(IMyTerminalBlock obj) => obj.CustomName.GetHashCode();
             }
 
             void BuildPidControlsMenu()
             {
                 var blocksMenu = CreateMenu("Configuration");
-                blocksMenu.AddArray(program.Sections.Select(info => new OptionItem { Label = info.Section + " >", Action = (_, i) => BuildPidControlsSubMenu(info) }).ToArray());
+                var gts = program.GridTerminalSystem;
+
+                var blocks = new List<IMyTerminalBlock>();
+                gts.GetBlockGroupWithName(craneGroup)?.GetBlocksOfType<IMyMechanicalConnectionBlock>(blocks, b => !(b is IMyMotorSuspension));
+
+                if (blocks.Count == 0)
+                {
+                    blocksMenu.Add(new OptionItem { Label = "-- No blocks found!!! --" });
+                    return;
+                }
+
+                var result = blocks
+                .Distinct(new BlockNamesComparer())
+                .GroupJoin(program.Sections, o => o.CustomName, i => i.Section, (o, i) =>
+                {
+                    var wrapper = i.SingleOrDefault();
+                    if (wrapper != null) return wrapper;
+                    var tempIni = new Dictionary<string, string>();
+                    Array.ForEach(InputNames, iName => tempIni.Add(iName, "0"));
+                    tempIni.Add("Tuning", "0/15/0/2");
+                    return new PistonMotorWrapper(o.CustomName, tempIni);
+                });
+
+                blocksMenu.AddArray(result.Select(info => new OptionItem { Label = info.Section + " >", Action = (_, i) => BuildPidControlsSubMenu(info) }).ToArray());
             }
 
             void BuildPidControlsSubMenu(PistonMotorWrapper info)
@@ -96,6 +77,11 @@ namespace IngameScript
                         info.UpdateIni(program.Profile, myIni);
                         program.Me.CustomData = myIni.ToString();
                         m[1].Label = "Save";
+                    }},
+
+                    new OptionItem { Label = "Align To", Value = (m, j) => info.KeepAlignedTo.ToString(), IncDec = (m, j, d) => {
+                        info.KeepAlignedTo = Directions[(Array.IndexOf(Directions, info.KeepAlignedTo) + d + (d < 0 ? Directions.Length : 0)) % Directions.Length];
+                        m[1].Label = ".Save";
                     }},
 
                     new OptionItem { Label = "Control input", Value = (m, j) => info.OP, IncDec = (m, j, d) => {
