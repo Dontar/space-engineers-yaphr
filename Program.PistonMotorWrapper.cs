@@ -24,8 +24,7 @@ namespace IngameScript
             public string Section;
             public string KeepAlignedTo;
 
-            public PistonMotorWrapper(string section, Dictionary<string, string> ini) : base(0, 0, 0, 1d / 6d, 0)
-            {
+            public PistonMotorWrapper(string section, Dictionary<string, string> ini) : base(0, 0, 0, 1d / 6d, 0) {
                 var op = ini.FirstOrDefault(o => InputNames.Contains(o.Key) && o.Value != "0");
 
                 Blocks = Util.GetGroupOrBlocks<IMyTerminalBlock>(section).ToArray();
@@ -39,18 +38,15 @@ namespace IngameScript
                 Tune(PIDTune);
             }
 
-            public PistonMotorWrapper(IMyTerminalBlock[] blocks) : base(0, 0, 0, 1d / 60d, 0)
-            {
+            public PistonMotorWrapper(IMyTerminalBlock[] blocks) : base(0, 0, 0, 1d / 60d, 0) {
                 Blocks = blocks;
                 Tune(new[] { 0d, 15d, 0d, 2d });
             }
 
-            public void UpdateIni(string Profile, MyIni ini)
-            {
+            public void UpdateIni(string Profile, MyIni ini) {
                 INI.Remove(OP);
                 INI.Add(OP, DesiredVelocity.ToString());
-                INI.ToList().ForEach(k =>
-                {
+                INI.ToList().ForEach(k => {
                     ini.DeleteSection(Section);
                     ini.Set($"{Profile}/{Section}", k.Key, InputNames.Contains(k.Key) && k.Key != OP ? "0" : k.Value);
                 });
@@ -58,8 +54,7 @@ namespace IngameScript
                 ini.Set($"{Profile}/{Section}", "KeepAlignedTo", KeepAlignedTo);
             }
 
-            public void Control(float direction)
-            {
+            public void Control(float direction) {
                 if (Blocks.Length == 0) return;
                 var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
                 var block = Blocks.First();
@@ -71,8 +66,7 @@ namespace IngameScript
                 SetSpeed(output);
             }
 
-            public bool SetPosition(string position)
-            {
+            public bool SetPosition(string position) {
                 if (!INI.ContainsKey(position) || Blocks.Length == 0) return true;
                 var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
                 var value = INI[position].Split('/');
@@ -87,8 +81,7 @@ namespace IngameScript
                 return Math.Abs(error) < 0.01;
             }
 
-            public bool SetPosition(float position)
-            {
+            public bool SetPosition(float position) {
                 if (Blocks.Length == 0) return true;
                 var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
                 var desiredPos = position;
@@ -101,8 +94,7 @@ namespace IngameScript
                 return Math.Abs(error) < 0.01;
             }
 
-            public bool SetPosition(Vector3D position)
-            {
+            public bool SetPosition(Vector3D position) {
                 if (Blocks.Length == 0) return true;
                 var block = Blocks.First();
                 if (IsPiston(block)) return true;
@@ -118,28 +110,23 @@ namespace IngameScript
 
             }
 
-            float VectorToHinge(Vector3D v, IMyMotorStator block)
-            {
+            float VectorToHinge(Vector3D v, IMyMotorStator block) {
                 var m = block.WorldMatrix;
                 var hingeUp = m.Up;
                 var proj = Vector3D.Normalize(Vector3D.ProjectOnPlane(ref v, ref hingeUp));
                 return (float)Math.Atan2(proj.Dot(m.Forward), proj.Dot(m.Left));
             }
 
-            float VectorToRotor(Vector3D v, IMyMotorStator block)
-            {
+            float VectorToRotor(Vector3D v, IMyMotorStator block) {
                 var m = block.WorldMatrix;
                 var rotorUp = m.Up;
                 var proj = Vector3D.Normalize(Vector3D.ProjectOnPlane(ref v, ref rotorUp));
                 return (float)Math.Atan2(proj.Dot(m.Left), proj.Dot(m.Backward));
             }
 
-            public void SetSpeed(float speed)
-            {
-                foreach (var block in Blocks)
-                {
-                    if (block is IMyExtendedPistonBase)
-                    {
+            public void SetSpeed(float speed) {
+                foreach (var block in Blocks) {
+                    if (block is IMyExtendedPistonBase) {
                         var piston = block as IMyExtendedPistonBase;
                         piston.Velocity = speed;
                         continue;
@@ -150,29 +137,22 @@ namespace IngameScript
             }
 
             float Max => IsPiston(Blocks.First()) ? 5.0f : 30.0f;
-            float Current
-            {
-                get
-                {
+            float Current {
+                get {
                     var block = Blocks.First();
                     return IsPiston(block) ? (block as IMyExtendedPistonBase).Velocity : (block as IMyMotorStator).TargetVelocityRPM;
                 }
             }
-            public float Position
-            {
-                get
-                {
+            public float Position {
+                get {
                     var block = Blocks.First();
                     return IsPiston(block) ? (block as IMyExtendedPistonBase).CurrentPosition : (block as IMyMotorStator).Angle;
                 }
             }
 
-            public void SetEnabledAndLock(bool locked)
-            {
-                foreach (var block in Blocks)
-                {
-                    if (block is IMyMotorStator)
-                    {
+            public void SetEnabledAndLock(bool locked) {
+                foreach (var block in Blocks) {
+                    if (block is IMyMotorStator) {
                         var rotor = block as IMyMotorStator;
                         rotor.RotorLock = locked;
                     }
@@ -180,13 +160,11 @@ namespace IngameScript
                 }
             }
 
-            bool IsPiston(IMyTerminalBlock block)
-            {
+            bool IsPiston(IMyTerminalBlock block) {
                 return block is IMyExtendedPistonBase;
             }
 
-            bool IsHinge(IMyTerminalBlock block)
-            {
+            bool IsHinge(IMyTerminalBlock block) {
                 return block is IMyMotorStator && block.BlockDefinition.SubtypeName.Contains("Hinge");
             }
         }

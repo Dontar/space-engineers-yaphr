@@ -11,8 +11,7 @@ namespace IngameScript
     {
         class CraneControlMenuManager : MenuManager
         {
-            public CraneControlMenuManager(Program program) : base(program)
-            {
+            public CraneControlMenuManager(Program program) : base(program) {
                 var mainMenu = CreateMenu("Crane control");
                 mainMenu.AddArray(new OptionItem[] {
                     // new OptionItem { Label = "Setup >", Action = (menu, index) => BuildConfigMenu() },
@@ -38,24 +37,21 @@ namespace IngameScript
                 public override int GetHashCode(IMyTerminalBlock obj) => obj.CustomName.GetHashCode();
             }
 
-            void BuildPidControlsMenu()
-            {
+            void BuildPidControlsMenu() {
                 var blocksMenu = CreateMenu("Configuration");
                 var gts = program.GridTerminalSystem;
 
                 var blocks = new List<IMyTerminalBlock>();
                 gts.GetBlockGroupWithName(craneGroup)?.GetBlocksOfType<IMyMechanicalConnectionBlock>(blocks, b => !(b is IMyMotorSuspension));
 
-                if (blocks.Count == 0)
-                {
+                if (blocks.Count == 0) {
                     blocksMenu.Add(new OptionItem { Label = "-- No blocks found!!! --" });
                     return;
                 }
 
                 var result = blocks
                 .Distinct(new BlockNamesComparer())
-                .GroupJoin(program.Sections, o => o.CustomName, i => i.Section, (o, i) =>
-                {
+                .GroupJoin(program.Sections, o => o.CustomName, i => i.Section, (o, i) => {
                     var wrapper = i.SingleOrDefault();
                     if (wrapper != null) return wrapper;
                     var tempIni = new Dictionary<string, string>();
@@ -67,8 +63,7 @@ namespace IngameScript
                 blocksMenu.AddArray(result.Select(info => new OptionItem { Label = info.Section + " >", Action = (_, i) => BuildPidControlsSubMenu(info) }).ToArray());
             }
 
-            void BuildPidControlsSubMenu(PistonMotorWrapper info)
-            {
+            void BuildPidControlsSubMenu(PistonMotorWrapper info) {
                 var step = 1;
                 var pidMenu = CreateMenu(info.Section);
                 pidMenu.AddArray(new OptionItem[] {
