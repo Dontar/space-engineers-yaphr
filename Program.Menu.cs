@@ -14,7 +14,6 @@ namespace IngameScript
             public CraneControlMenuManager(Program program) : base(program) {
                 var mainMenu = CreateMenu("Crane control");
                 mainMenu.AddArray(new OptionItem[] {
-                    // new OptionItem { Label = "Setup >", Action = (menu, index) => BuildConfigMenu() },
                     new OptionItem { Label = "Configuration >", Action = (menu, index) => BuildPidControlsMenu() },
                     new OptionItem { Label = "Profile", Value = (m,j) => program.Profile, IncDec = (m, j, d) => {
                         var sections = new List<string>();

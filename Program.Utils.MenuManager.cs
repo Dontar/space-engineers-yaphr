@@ -95,7 +95,7 @@ namespace IngameScript
             protected Menu CreateMenu(string title) {
                 var menu = new Menu(title);
                 if (menuStack.Count > 0) {
-                    menu.Add(new OptionItem { Label = "< Back", Action = (m, j) => { menuStack.Pop(); } });
+                    menu.Add(new OptionItem { Label = "< Back", Action = (m, j) => menuStack.Pop() });
                 }
                 menuStack.Push(menu);
                 return menu;
