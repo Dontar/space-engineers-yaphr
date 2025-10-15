@@ -29,10 +29,10 @@ namespace IngameScript
         string Mode = "off";
         bool KeepAlign = false;
         string Profile = "default";
-        TaskManager.ITask _LogoTask;
-        TaskManager.ITask _ControlTask;
-        TaskManager.ITask _ParkTask;
-        TaskManager.ITask _WorkTask;
+        ITask _LogoTask;
+        ITask _ControlTask;
+        ITask _ParkTask;
+        ITask _WorkTask;
 
         IEnumerable<IMyShipController> Controllers => Memo.Of("ControlCrane", 100, () => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip));
 
@@ -71,12 +71,12 @@ namespace IngameScript
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
             Util.Init(this);
             menuSystem = new CraneControlMenuManager(this);
-            TaskManager.RunTask(Util.StatusMonitorTask(this));
-            TaskManager.RunTask(RenderMenuTask()).Every(1.7f);
-            _ControlTask = TaskManager.RunTask(ControlCraneTask()).Pause();
-            _ParkTask = TaskManager.RunTask(PositionCraneTask("Park")).Pause();
-            _WorkTask = TaskManager.RunTask(PositionCraneTask("Work")).Pause();
-            _LogoTask = TaskManager.RunTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
+            Task.RunTask(Util.StatusMonitorTask(this));
+            Task.RunTask(RenderMenuTask()).Every(1.7f);
+            _ControlTask = Task.RunTask(ControlCraneTask()).Pause();
+            _ParkTask = Task.RunTask(PositionCraneTask("Park")).Pause();
+            _WorkTask = Task.RunTask(PositionCraneTask("Work")).Pause();
+            _LogoTask = Task.RunTask(Util.DisplayLogo("Y.A.P.H.R", Me.GetSurface(0)));
         }
 
         public void Main(string argument, UpdateType updateSource) {
@@ -94,7 +94,7 @@ namespace IngameScript
             _ParkTask.Pause(Mode != "park");
             _WorkTask.Pause(Mode != "work");
 
-            TaskManager.Tick(Runtime.TimeSinceLastRun);
+            Task.Tick(Runtime.TimeSinceLastRun);
         }
 
         void ProcessCommands(string command) {
@@ -110,7 +110,7 @@ namespace IngameScript
                     break;
                 case "set_park":
                 case "set_work":
-                    TaskManager.RunTask(SavePositionsTask(char.ToUpper(cmd[4]) + cmd.Substring(5))).Once();
+                    Task.RunTask(SavePositionsTask(char.ToUpper(cmd[4]) + cmd.Substring(5))).Once();
                     break;
                 case "park":
                 case "work":
