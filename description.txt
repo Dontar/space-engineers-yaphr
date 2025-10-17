@@ -136,7 +136,7 @@ The script supports the following commands:
 
 
 [h2] Small crane to demonstrate the script: [/h2]
-https://steamcommunity.com/sharedfiles/filedetails/?id=3275471377
+https://steamcommunity.com/sharedfiles/filedetails/?id=3588778336
 
 The source code for this script is here https://github.com/Dontar/space-engineers-yaphr
 

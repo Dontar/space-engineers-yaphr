@@ -63,7 +63,7 @@ namespace IngameScript
 
             void BuildPidControlsSubMenu(PistonMotorWrapper info) {
                 var p = program;
-                var step = 1;
+                var step = 1f;
                 var pidMenu = CreateMenu(info.Section);
                 pidMenu.AddArray(new OptionItem[] {
                     new OptionItem { Label = "Save", Action = (m, j) => {
@@ -84,7 +84,7 @@ namespace IngameScript
                     }},
 
                     new OptionItem { Label = "Control gain",  Value = (m, j) => info.DesiredVelocity.ToString(), IncDec = (m, j, d) => {
-                        info.DesiredVelocity += -d;
+                        info.DesiredVelocity += -d / step;
                         m[1].Label = ".Save";
                     }},
 
