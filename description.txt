@@ -9,7 +9,7 @@ Now with support for Profiles!!!
 
 [h2] Initial setup [/h2]
 [olist]
-[*]Setup your groups or piston and/or rotor/hinge names. The script will treat blocks with the same name as group as well.
+[*]Setup all of the blocks comprising the crane in "{Yaphr} Crane" group. The script will put configuration in the programmable block CustomData.
 [*]Add the "{Yaphr}" tag to your screen/cockpit. It can be put either in the name or in CustomData, the script will check both. This is only necessary for the script to show its menu. For cockpits multi screens put "@1-n" to the cockpit CustomData. Example "@1" first screen, "@2" second and so on. You can even combine the tag and the screen index like this "{Yaphr}@2".
 [*]Load the script into your Programmable Block and bind the "up"/"down"/"apply" commands to your bar (just like PAM).
 [*]As soon as the menu shows on the configured screen you'r good to go.
@@ -18,8 +18,7 @@ Now with support for Profiles!!!
 [code]
 Crane control
 ==================================
-> Setup >
-  Configuration >
+> Configuration >
   Profile: default
   Mode: off
   Park
@@ -31,19 +30,6 @@ Crane control
 
 Up/Down - navigate.
 Apply - go into the submenus
-
-[code]
-Setup
-==================================
-  < Back
-  .Save
-  [ ] Park pistons
-  [ ] Parking plates
-> [x] Hinges
-  [x] Pistons
-----------------------------------
-[/code]
-Mark the groups and/or blocks that you want to control. Don't forget to "Save" :). This will add definitions for the selected block/groups into the Programmable block's CustomData.
 
 After this step you can either go to your Programmable block CustomData and configure it manually there...
 [code]
@@ -94,7 +80,7 @@ Park=15/15/0/1/1.570796
 ... or go "Back" and enter the "PID Controls" menu.
 
 [code]
-PID Controls
+Configuration
 ====================
   < Back
 > Pistons >
@@ -104,14 +90,15 @@ PID Controls
   Base Hinge >
 ----------------------------------
 [/code]
-All of your previously selected groups/blocks are here. Go and configure how you want to control them.
+All of the blocks in the "{Yaphr} Crane" group are here. Go and configure how you want to control them.
 
 [code]
 Pistons
 ==================================
   < Back
   Save                      -------> Save the current configuration.
-> Control input: Up/Down    -------> "apply" to enter edit mode. "up"/"down" to change value.
+  Align To: None            -------> Set automatic align to a direction relative to the base rotor
+> Control input: Up/Down    -------> "apply" to enter edit mode. "up"/"down" PB commands to change value.
   Control gain: 1           -------> Speed or mouse gain.
   Step: 1 / 1               -------> Amount to inc/dec the last four values.
   Kp: 0
@@ -121,9 +108,15 @@ Pistons
 ----------------------------------
 [/code]
 
+The last four values are respectively the Proportional Term, Integral Term, and Derivative Term of the PID controller responsible for the particular block.
+The "Decay" term is a simple decay mechanism I added for the Integral.
+If you don't know what these terms mean or anything about PID controllers fot that matter, don't worry. Just play with the values and see what happens.
+For starters use the values set by default by the script.
+They are tuned so that there is just enough delay to compensate for inertia which is especially useful for making mouse control buttery smooth.
+
 After that set the "toggle" command on your toolbar to be able to turn the scrip on/off and you should be good to go.
 
-The script also supports automatic movement to preset "park" and "work" position. To use this feature, manually move the crane to the desired position and run either the "set_park" or "set_work" command. Put the "work" and "park" commands on your toolbar and the crane will automatically move to either position.
+The script also supports automatic movement to preset "Park" and "Work" position. To use this feature, manually move the crane to the desired position and run either the "set_park" or "set_work" command. Put the "work" and "park" commands on your toolbar and the crane will automatically move to either position.
 
 The Profile functionality is kind of self explanatory. You can create multiple profiles. This can be helpful for example if you like to set up different speed modes and switch for finer control. Personally I use it to control multiple cranes on a single grid. Under the hood it's rather simple. The script just creates multiple sections in the PB CustomData prefixed with the respective profile name.
 
@@ -131,6 +124,7 @@ The script supports the following commands:
 [table]
     [tr] [th]Command[/th] [th]Description[/th] [/tr]
     [tr] [td]"toggle"[/td] [td]on/off[/td] [/tr]
+    [tr] [td]"align"[/td] [td]Set align mode on/off. This is going to align the configured blocks to the pre-configured direction relative to the base rotor[/td] [/tr]
     [tr] [td]"work"[/td] [td]Switch to go to "work" mode[/td] [/tr]
     [tr] [td]"park"[/td] [td]Switch to go to "park" mode[/td] [/tr]
     [tr] [td]"set_park"[/td] [td]Sets the "park" position[/td] [/tr]
@@ -140,10 +134,6 @@ The script supports the following commands:
     [tr] [td]set [profile_name][/td] [td]Switches to [profile_name][/td] [/tr]
 [/table]
 
-As the mechanical engineers among you have probably guessed by now, everything is controlled with PID controllers.
-The last four values are respectively the Proportional Term, Integral Term, and Derivative Term. The "Decay" term is a simple decay mechanism I added for the Integral.
-If you don't know what these terms mean, don't worry. Just play with the values and see what happens. Although I would recommend reading up on PID controllers. They are quite interesting.
-For starters use the values set by default by the script. They are tuned so that there is just enough delay to compensate for inertia which is especially useful for making mouse control buttery smooth.
 
 [h2] Small crane to demonstrate the script: [/h2]
 https://steamcommunity.com/sharedfiles/filedetails/?id=3275471377

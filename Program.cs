@@ -13,8 +13,14 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         #region mdk preserve
-        const string screenTag = "{Yaphr}";
-        const string craneGroup = "{Yaphr} Crane";
+        // Configuration options
+        const string screenTag = "{Yaphr}"; // Tag name for the screen. Can be put either in the Name or in CustomData of blocks.
+        const string craneGroup = "{Yaphr} Crane"; // Group name to be used for block comprising the crane to be put in.
+
+        /* Source Code: https://github.com/Dontar/space-engineers-yaphr
+         * =======================================================================================================================
+         */
+        #endregion
 
         const string RotationIndicatorY = "Yaw";
         const string RotationIndicatorX = "Pitch";
@@ -22,7 +28,6 @@ namespace IngameScript
         const string MoveIndicatorX = "Left/Right";
         const string MoveIndicatorY = "Up/Down";
         const string MoveIndicatorZ = "Forward/Backward";
-        #endregion
 
         CraneControlMenuManager menuSystem;
         string Mode = "off";
@@ -38,6 +43,7 @@ namespace IngameScript
         public Program() {
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
             Util.Init(this);
+            InitConfig();
             menuSystem = new CraneControlMenuManager(this);
             Task.RunTask(Util.StatusMonitorTask(this));
             Task.RunTask(RenderMenuTask()).Every(1.7f);
@@ -58,9 +64,7 @@ namespace IngameScript
                 return;
             }
 
-            Memo.Of("OnCustomDataChanged", Me.CustomData, () => {
-                Config.TryParse(Me.CustomData);
-            });
+            Memo.Of("OnCustomDataChanged", Me.CustomData, InitConfig);
 
             _ControlTask.Pause(Mode != "control");
             _ParkTask.Pause(Mode != "park");
@@ -109,9 +113,9 @@ namespace IngameScript
             }
         }
 
-        IEnumerable<IMyShipController> Controllers => Memo.Of("Controllers_RefreshOn", 100, () => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip));
+        IEnumerable<IMyShipController> Controllers => Memo.Of("Controllers_RefreshOn", 100, () => Util.GetBlocks<IMyShipController>(b => b.CanControlShip));
 
-        IEnumerable<IMyTextSurface> Screens => Memo.Of("Screens_RefreshOn", 100, () => Util.GetScreens(screenTag));
+        IEnumerable<IMyTextSurface> Screens => Memo.Of("Screens_RefreshOn", 5, () => Util.GetScreens(screenTag));
 
         IEnumerable<PistonMotorWrapper> Sections => Memo.Of("Sections_OnConfigOrProfileChanged", new object[] { Me.CustomData, Profile }, () => {
             var opts = new List<MyIniKey>();
@@ -119,8 +123,8 @@ namespace IngameScript
             if (opts.Count == 0) return new PistonMotorWrapper[] { };
             return opts.Select(k => {
                 var p = k.Section.Split('/');
-                var Profile = p.Length < 2 ? "default" : p.First();
-                var Section = p.Last();
+                var Profile = p.Length < 2 ? "default" : p[0];
+                var Section = p[1];
                 return new { k.Name, Section, Profile, Value = Config.Get(k).ToString() };
             })
             .Where(i => i.Profile == Profile)
@@ -135,6 +139,23 @@ namespace IngameScript
             var blocks = Util.GetGroup<IMyMechanicalConnectionBlock>(craneGroup);
             return blocks.FirstOrDefault(b => !blocks.Any(o => o.TopGrid == b.CubeGrid));
         });
+
+        void InitConfig() {
+            if (string.IsNullOrEmpty(Me.CustomData) || !Config.TryParse(Me.CustomData)) {
+                var blocks = Util.GetGroup<IMyMechanicalConnectionBlock>(craneGroup, b => !(b is IMyMotorSuspension))
+                .Distinct(new BlockNamesComparer())
+                .Select(b => {
+                    var tempIni = new Dictionary<string, string>();
+                    Array.ForEach(InputNames, iName => tempIni.Add(iName, "0"));
+                    tempIni.Add("Tuning", "0/15/0/2");
+                    return new PistonMotorWrapper(b.CustomName, tempIni);
+                });
+                foreach (var item in blocks) {
+                    item.UpdateIni(Profile, Config);
+                }
+                Me.CustomData = Config.ToString();
+            }
+        }
 
         IEnumerable ControlCraneTask() {
             while (true) {

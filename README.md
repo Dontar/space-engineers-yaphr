@@ -1,4 +1,4 @@
-﻿R e a d m e
+R e a d m e
 -----------
 
 Y.A.P.H.R - Yet another Pistons, Hinges, and Rotors control script.

@@ -9,6 +9,12 @@ namespace IngameScript
 {
     partial class Program
     {
+        class BlockNamesComparer : EqualityComparer<IMyTerminalBlock>
+        {
+            public override bool Equals(IMyTerminalBlock x, IMyTerminalBlock y) => x.CustomName == y.CustomName;
+            public override int GetHashCode(IMyTerminalBlock obj) => obj.CustomName.GetHashCode();
+        }
+
         class CraneControlMenuManager : MenuManager
         {
             public CraneControlMenuManager(Program program) : base(program) {
@@ -31,20 +37,12 @@ namespace IngameScript
                 });
             }
 
-            class BlockNamesComparer : EqualityComparer<IMyTerminalBlock>
-            {
-                public override bool Equals(IMyTerminalBlock x, IMyTerminalBlock y) => x.CustomName == y.CustomName;
-                public override int GetHashCode(IMyTerminalBlock obj) => obj.CustomName.GetHashCode();
-            }
-
             void BuildPidControlsMenu() {
                 var blocksMenu = CreateMenu("Configuration");
-                var gts = program.GridTerminalSystem;
 
-                var blocks = new List<IMyTerminalBlock>();
-                gts.GetBlockGroupWithName(craneGroup)?.GetBlocksOfType<IMyMechanicalConnectionBlock>(blocks, b => !(b is IMyMotorSuspension));
+                var blocks = Util.GetGroup<IMyMechanicalConnectionBlock>(craneGroup, b => !(b is IMyMotorSuspension));
 
-                if (blocks.Count == 0) {
+                if (blocks.Count() == 0) {
                     blocksMenu.Add(new OptionItem { Label = "-- No blocks found!!! --" });
                     return;
                 }

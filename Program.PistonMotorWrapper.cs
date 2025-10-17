@@ -99,7 +99,7 @@ namespace IngameScript
                 if (IsPiston(block)) return true;
 
                 var desiredPos = IsHinge(block)
-                    ? VectorToHinge(position, (IMyMotorStator)block)
+                    ? VectorToHinge(position, (IMyMotorStator)block) / Blocks.Count()
                     : VectorToRotor(position, (IMyMotorStator)block);
 
                 var error = MathHelper.ToDegrees(MathHelper.WrapAngle(desiredPos - Position));
