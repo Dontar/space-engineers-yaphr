@@ -11,7 +11,6 @@ namespace IngameScript
 {
     partial class Program
     {
-
         static readonly string[] InputNames = new string[] { RotationIndicatorX, RotationIndicatorY, RollIndicator, MoveIndicatorX, MoveIndicatorY, MoveIndicatorZ };
         static string[] Directions = Array.ConvertAll(Base6Directions.EnumDirections, i => i.ToString()).Prepend("None").ToArray();
         class PistonMotorWrapper : PID
@@ -56,7 +55,7 @@ namespace IngameScript
 
             public void Control(float direction) {
                 if (Blocks.Length == 0) return;
-                var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
+                var time = Task.CurrentTaskLastRun.TotalSeconds;
                 var block = Blocks.First();
                 var targetVelocity = MathHelper.Clamp(DesiredVelocity, -Max, Max);
 
@@ -68,7 +67,7 @@ namespace IngameScript
 
             public bool SetPosition(string position) {
                 if (!INI.ContainsKey(position) || Blocks.Length == 0) return true;
-                var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
+                var time = Task.CurrentTaskLastRun.TotalSeconds;
                 var value = INI[position].Split('/');
                 var desiredPos = value.Skip(4).Select(float.Parse).FirstOrDefault();
                 var tune = value.Take(4).Select(double.Parse).ToArray();
@@ -83,7 +82,7 @@ namespace IngameScript
 
             public bool SetPosition(float position) {
                 if (Blocks.Length == 0) return true;
-                var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
+                var time = Task.CurrentTaskLastRun.TotalSeconds;
                 var desiredPos = position;
                 var block = Blocks.First();
 
@@ -99,15 +98,16 @@ namespace IngameScript
                 var block = Blocks.First();
                 if (IsPiston(block)) return true;
 
-                var desiredPos = IsHinge(block) ? VectorToHinge(position, (IMyMotorStator)block) : VectorToRotor(position, (IMyMotorStator)block);
+                var desiredPos = IsHinge(block)
+                    ? VectorToHinge(position, (IMyMotorStator)block)
+                    : VectorToRotor(position, (IMyMotorStator)block);
 
-                var error = MathHelper.ToDegrees(desiredPos - Position);
+                var error = MathHelper.ToDegrees(MathHelper.WrapAngle(desiredPos - Position));
 
-                var time = TaskManager.CurrentTaskLastRun.TotalSeconds;
+                var time = Task.CurrentTaskLastRun.TotalSeconds;
                 var output = (float)Math.Round(Signal(error, time, new[] { 8d, 0, 0, 0 }), 3);
                 SetSpeed(output);
                 return Math.Abs(error) < 0.01;
-
             }
 
             float VectorToHinge(Vector3D v, IMyMotorStator block) {
@@ -146,7 +146,9 @@ namespace IngameScript
             public float Position {
                 get {
                     var block = Blocks.First();
-                    return IsPiston(block) ? (block as IMyExtendedPistonBase).CurrentPosition : (block as IMyMotorStator).Angle;
+                    return IsPiston(block)
+                        ? (block as IMyExtendedPistonBase).CurrentPosition
+                        : (block as IMyMotorStator).Angle;
                 }
             }
 

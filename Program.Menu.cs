@@ -12,21 +12,22 @@ namespace IngameScript
         class CraneControlMenuManager : MenuManager
         {
             public CraneControlMenuManager(Program program) : base(program) {
+                var p = program;
                 var mainMenu = CreateMenu("Crane control");
                 mainMenu.AddArray(new OptionItem[] {
                     new OptionItem { Label = "Configuration >", Action = (menu, index) => BuildPidControlsMenu() },
-                    new OptionItem { Label = "Profile", Value = (m,j) => program.Profile, IncDec = (m, j, d) => {
+                    new OptionItem { Label = "Profile", Value = (_,__) => p.Profile, IncDec = (_, __, d) => {
                         var sections = new List<string>();
-                        program.Config.GetSections(sections);
+                        p.Config.GetSections(sections);
                         var allProfiles = sections.Select(s => s.Split('/')[0]).Distinct().ToArray();
-                        program.Profile = allProfiles[(Array.IndexOf(allProfiles, program.Profile) + d + (d < 0 ? allProfiles.Length : 0)) % allProfiles.Length];
+                        p.Profile = allProfiles[(Array.IndexOf(allProfiles, p.Profile) + d + (d < 0 ? allProfiles.Length : 0)) % allProfiles.Length];
                     }},
-                    new OptionItem { Label = "Mode", Value = (m, j) => program.Mode, Action = (m, j) => program.ProcessCommands("toggle_mode") },
-                    new OptionItem { Label = "KeepAlign", Value = (_, __) => program.KeepAlign.ToString()},
-                    new OptionItem { Label = "Park", Action = (menu, index) => program.ProcessCommands("park") },
-                    new OptionItem { Label = "Work", Action = (menu, index) => program.ProcessCommands("work") },
-                    new OptionItem { Label = "Set Park position", Action = (menu, index) => program.ProcessCommands("set_park") },
-                    new OptionItem { Label = "Set Work position", Action = (menu, index) => program.ProcessCommands("set_work") },
+                    new OptionItem { Label = "Mode", Value = (_, __) => p.Mode, Action = (_, __) => p.ExecuteCommands("toggle_mode") },
+                    new OptionItem { Label = "KeepAlign", Value = (_, __) => p.KeepAlign.ToString()},
+                    new OptionItem { Label = "Park", Action = (menu, index) => p.ExecuteCommands("park") },
+                    new OptionItem { Label = "Work", Action = (menu, index) => p.ExecuteCommands("work") },
+                    new OptionItem { Label = "Set Park position", Action = (menu, index) => p.ExecuteCommands("set_park") },
+                    new OptionItem { Label = "Set Work position", Action = (menu, index) => p.ExecuteCommands("set_work") },
                 });
             }
 
@@ -63,13 +64,14 @@ namespace IngameScript
             }
 
             void BuildPidControlsSubMenu(PistonMotorWrapper info) {
+                var p = program;
                 var step = 1;
                 var pidMenu = CreateMenu(info.Section);
                 pidMenu.AddArray(new OptionItem[] {
                     new OptionItem { Label = "Save", Action = (m, j) => {
-                        var myIni = program.Config;
-                        info.UpdateIni(program.Profile, myIni);
-                        program.Me.CustomData = myIni.ToString();
+                        var myIni = p.Config;
+                        info.UpdateIni(p.Profile, myIni);
+                        p.Me.CustomData = myIni.ToString();
                         m[1].Label = "Save";
                     }},
 

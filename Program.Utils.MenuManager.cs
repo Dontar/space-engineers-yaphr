@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using VRage.Game.GUI.TextPanel;
+using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
 {
@@ -80,9 +81,9 @@ namespace IngameScript
                 }
             }
 
-            protected readonly Stack<Menu> menuStack = new Stack<Menu>();
+            protected Stack<Menu> menuStack = new Stack<Menu>();
 
-            protected readonly Program program;
+            protected Program program;
 
             public MenuManager(Program program) {
                 this.program = program;
@@ -101,8 +102,8 @@ namespace IngameScript
                 return menu;
             }
 
-            public bool ProcessMenuCommands(string command = "") {
-                switch (command.ToLower()) {
+            public bool ExecuteMenuCommands(MyCommandLine cmd) {
+                switch (cmd.Argument(0).ToLower()) {
                     case "up":
                         Up();
                         break;

@@ -15,7 +15,6 @@ namespace IngameScript
         #region mdk preserve
         const string screenTag = "{Yaphr}";
         const string craneGroup = "{Yaphr} Crane";
-        #endregion
 
         const string RotationIndicatorY = "Yaw";
         const string RotationIndicatorX = "Pitch";
@@ -23,9 +22,9 @@ namespace IngameScript
         const string MoveIndicatorX = "Left/Right";
         const string MoveIndicatorY = "Up/Down";
         const string MoveIndicatorZ = "Forward/Backward";
+        #endregion
 
         CraneControlMenuManager menuSystem;
-
         string Mode = "off";
         bool KeepAlign = false;
         string Profile = "default";
@@ -33,39 +32,8 @@ namespace IngameScript
         ITask _ControlTask;
         ITask _ParkTask;
         ITask _WorkTask;
-
-        IEnumerable<IMyShipController> Controllers => Memo.Of("ControlCrane", 100, () => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip));
-
-        MyIni Config => Memo.Of("GetConfig", Me.CustomData, () => {
-            var myIni = new MyIni();
-            myIni.TryParse(Me.CustomData);
-            return myIni;
-        });
-
-        IEnumerable<IMyTextSurface> Screens => Memo.Of("Screens", 100, () => Util.GetScreens(screenTag));
-
-        IEnumerable<PistonMotorWrapper> Sections => Memo.Of("Sections", new object[] { Config, Profile }, () => {
-            var opts = new List<MyIniKey>();
-            Config.GetKeys(opts);
-            if (opts.Count == 0) return new PistonMotorWrapper[] { };
-            return opts.Select(k => {
-                var p = k.Section.Split('/');
-                var profile = p.Length < 2 ? "default" : p.First();
-                var section = p.Last();
-                return new { k.Name, Section = section, Profile = profile, Value = Config.Get(k).ToString() };
-            })
-            .Where(i => i.Profile == Profile)
-            .GroupBy(
-                iniKey => iniKey.Section,
-                theIniKey => theIniKey,
-                (section, theIniKey) => new PistonMotorWrapper(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
-            .ToArray();
-        });
-
-        IMyTerminalBlock BaseBlock => Memo.Of("BaseBlock", Config, () => {
-            var blocks = Util.GetGroup<IMyMechanicalConnectionBlock>(craneGroup);
-            return blocks.FirstOrDefault(b => !blocks.Any(o => o.TopGrid == b.CubeGrid));
-        });
+        MyIni Config = new MyIni();
+        MyCommandLine Cmd = new MyCommandLine();
 
         public Program() {
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -81,7 +49,7 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource) {
             if (!string.IsNullOrEmpty(argument))
-                ProcessCommands(argument);
+                ExecuteCommands(argument);
 
             if (!updateSource.HasFlag(UpdateType.Update10)) return;
 
@@ -90,6 +58,10 @@ namespace IngameScript
                 return;
             }
 
+            Memo.Of("OnCustomDataChanged", Me.CustomData, () => {
+                Config.TryParse(Me.CustomData);
+            });
+
             _ControlTask.Pause(Mode != "control");
             _ParkTask.Pause(Mode != "park");
             _WorkTask.Pause(Mode != "work");
@@ -97,43 +69,72 @@ namespace IngameScript
             Task.Tick(Runtime.TimeSinceLastRun);
         }
 
-        void ProcessCommands(string command) {
-            var cmd = command.ToLower().Trim();
-            Stop();
-            switch (cmd) {
-                case "toggle":
-                    Mode = Mode != "control" ? "control" : "off";
-                    LockAndPowerOff(false);
-                    break;
-                case "align":
-                    KeepAlign = !KeepAlign;
-                    break;
-                case "set_park":
-                case "set_work":
-                    Task.RunTask(SavePositionsTask(char.ToUpper(cmd[4]) + cmd.Substring(5))).Once();
-                    break;
-                case "park":
-                case "work":
-                    Mode = cmd;
-                    LockAndPowerOff(false);
-                    break;
-                default:
-                    if (cmd.StartsWith("add")) {
-                        AddProfile(command.Substring(4).Trim());
-                    }
-                    else
-                    if (cmd.StartsWith("set")) {
-                        Profile = command.Substring(4).Trim();
-                    }
-                    else
-                    if (menuSystem.ProcessMenuCommands(cmd)) {
-                        foreach (var s in Screens) {
-                            menuSystem.Render(s);
+        void ExecuteCommands(string argument) {
+            var cmd = Cmd;
+            if (cmd.TryParse(argument)) {
+                var command = cmd.Argument(0).ToLower();
+                Stop();
+                switch (command) {
+                    case "toggle":
+                        Mode = Mode != "control" ? "control" : "off";
+                        LockAndPowerOff(false);
+                        break;
+                    case "align":
+                        KeepAlign = !KeepAlign;
+                        break;
+                    case "set_park":
+                    case "set_work":
+                        var info = System.Globalization.CultureInfo.CurrentCulture.TextInfo;
+                        SavePositions(info.ToTitleCase(command.Substring(4)));
+                        break;
+                    case "park":
+                    case "work":
+                        Mode = command;
+                        LockAndPowerOff(false);
+                        break;
+                    case "add":
+                        AddProfile(cmd.Argument(1));
+                        break;
+                    case "set":
+                        Profile = cmd.Argument(1);
+                        break;
+                    default:
+                        if (menuSystem.ExecuteMenuCommands(cmd)) {
+                            foreach (var s in Screens) {
+                                menuSystem.Render(s);
+                            }
                         }
-                    }
-                    break;
+                        break;
+                }
             }
         }
+
+        IEnumerable<IMyShipController> Controllers => Memo.Of("Controllers_RefreshOn", 100, () => Util.GetBlocks<IMyShipController>(b => Me.IsSameConstructAs(b) && b.CanControlShip));
+
+        IEnumerable<IMyTextSurface> Screens => Memo.Of("Screens_RefreshOn", 100, () => Util.GetScreens(screenTag));
+
+        IEnumerable<PistonMotorWrapper> Sections => Memo.Of("Sections_OnConfigOrProfileChanged", new object[] { Me.CustomData, Profile }, () => {
+            var opts = new List<MyIniKey>();
+            Config.GetKeys(opts);
+            if (opts.Count == 0) return new PistonMotorWrapper[] { };
+            return opts.Select(k => {
+                var p = k.Section.Split('/');
+                var Profile = p.Length < 2 ? "default" : p.First();
+                var Section = p.Last();
+                return new { k.Name, Section, Profile, Value = Config.Get(k).ToString() };
+            })
+            .Where(i => i.Profile == Profile)
+            .GroupBy(
+                iniKey => iniKey.Section,
+                theIniKey => theIniKey,
+                (section, theIniKey) => new PistonMotorWrapper(section, theIniKey.ToDictionary(k => k.Name, k => k.Value)))
+            .ToArray();
+        });
+
+        IMyTerminalBlock BaseBlock => Memo.Of("BaseBlock", Me.CustomData, () => {
+            var blocks = Util.GetGroup<IMyMechanicalConnectionBlock>(craneGroup);
+            return blocks.FirstOrDefault(b => !blocks.Any(o => o.TopGrid == b.CubeGrid));
+        });
 
         IEnumerable ControlCraneTask() {
             while (true) {
@@ -162,23 +163,24 @@ namespace IngameScript
             }
         }
 
-        IEnumerable SavePositionsTask(string optName) {
+        void SavePositions(string optName) {
+            var ini = Config;
             foreach (var info in Sections) {
                 if (info.Blocks.Length == 0) continue;
-                var ini = Config;
                 ini.Set($"{Profile}/{info.Section}", optName, $"15/{info.PIDTune[1]}/{info.PIDTune[2]}/{info.PIDTune[3]}/{info.Position}");
             }
-            Me.CustomData = Config.ToString();
-            yield return null;
+            Me.CustomData = ini.ToString();
         }
 
         IEnumerable RenderMenuTask() {
             var pbScreen = Me.GetSurface(0);
             while (true) {
+                var pauseLogo = false;
                 foreach (var s in Screens) {
-                    if (s == pbScreen) _LogoTask.Pause();
+                    if (s == pbScreen) pauseLogo = true;
                     menuSystem.Render(s);
                 }
+                _LogoTask.Pause(pauseLogo);
                 yield return null;
             }
         }
