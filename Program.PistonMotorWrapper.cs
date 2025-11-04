@@ -93,7 +93,7 @@ namespace IngameScript
                 return Math.Abs(error) < 0.01;
             }
 
-            public bool SetPosition(Vector3D position) {
+            public bool SetPosition(Vector3D position, string tune) {
                 if (Blocks.Length == 0) return true;
                 var block = Blocks.First();
                 if (IsPiston(block)) return true;
@@ -105,7 +105,8 @@ namespace IngameScript
                 var error = MathHelper.ToDegrees(MathHelper.WrapAngle(desiredPos - Position));
 
                 var time = Task.CurrentTaskLastRun.TotalSeconds;
-                var output = (float)Math.Round(Signal(error, time, new[] { 8d, 0, 10, 0 }), 3);
+                var t = tune.Split('/').Select(double.Parse).ToArray();
+                var output = (float)Math.Round(Signal(error, time, t), 3);
                 SetSpeed(output);
                 return Math.Abs(error) < 0.01;
             }

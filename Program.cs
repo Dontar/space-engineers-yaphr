@@ -16,6 +16,7 @@ namespace IngameScript
         // Configuration options
         const string screenTag = "{Yaphr}"; // Tag name for the screen. Can be put either in the Name or in CustomData of blocks.
         const string craneGroup = "{Yaphr} Crane"; // Group name to be used for block comprising the crane to be put in.
+        const string alignPID = "8/0/10/0";
 
         /* Source Code: https://github.com/Dontar/space-engineers-yaphr
          * =======================================================================================================================
@@ -163,7 +164,7 @@ namespace IngameScript
                 foreach (var descriptor in Sections) {
                     if (KeepAlign && descriptor.KeepAlignedTo != "None") {
                         var dirVector = BaseBlock.WorldMatrix.GetDirectionVector((Base6Directions.Direction)Enum.Parse(typeof(Base6Directions.Direction), descriptor.KeepAlignedTo));
-                        descriptor.SetPosition(dirVector);
+                        descriptor.SetPosition(dirVector, alignPID);
                         continue;
                     }
                     var direction = ReadControllerValue(controller, descriptor.OP);
