@@ -105,7 +105,7 @@ namespace IngameScript
                 var error = MathHelper.ToDegrees(MathHelper.WrapAngle(desiredPos - Position));
 
                 var time = Task.CurrentTaskLastRun.TotalSeconds;
-                var output = (float)Math.Round(Signal(error, time, new[] { 8d, 0, 0, 0 }), 3);
+                var output = (float)Math.Round(Signal(error, time, new[] { 8d, 0, 10, 0 }), 3);
                 SetSpeed(output);
                 return Math.Abs(error) < 0.01;
             }
